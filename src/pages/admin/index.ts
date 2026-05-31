@@ -1,0 +1,8 @@
+export { AdminDashboard } from './AdminDashboard';
+export { MoviesManagement } from './MoviesManagement';
+export { CinemasManagement } from './CinemasManagement';
+export { ShowtimesManagement } from './ShowtimesManagement';
+export { UsersManagement } from './UsersManagement';
+export { PromotionsManagement } from './PromotionsManagement';
+export { MasterDataManagement } from './MasterDataManagement';
+export { TicketPricesManagement } from './TicketPricesManagement';

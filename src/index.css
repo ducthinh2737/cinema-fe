@@ -1,0 +1,117 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-background text-gray-200 font-sans antialiased overflow-x-hidden selection:bg-brand selection:text-white;
+  }
+}
+
+/* Glassmorphism scrollbars */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #0a0a0c;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(229, 9, 20, 0.6);
+}
+
+/* Custom animation extensions */
+.glass-panel {
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.glass-panel-hover {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.glass-panel-hover:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(229, 9, 20, 0.35);
+  transform: translateY(-4px);
+  box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.7);
+}
+
+.glow-hover {
+  transition: all 0.3s ease;
+}
+
+.glow-hover:hover {
+  box-shadow: 0 0 20px rgba(229, 9, 20, 0.4);
+}
+
+/* Ant Design Dark Custom Overrides */
+.custom-table .ant-table {
+  background: transparent !important;
+  color: #d1d5db !important;
+}
+
+.custom-table .ant-table-thead > tr > th {
+  background: rgba(255, 255, 255, 0.02) !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05) !important;
+  color: #9ca3af !important;
+}
+
+.custom-table .ant-table-tbody > tr > td {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05) !important;
+}
+
+.custom-table .ant-table-tbody > tr:hover > td {
+  background: rgba(255, 255, 255, 0.02) !important;
+}
+
+.custom-antd-select .ant-select-selector,
+.custom-antd-form-select .ant-select-selector,
+.custom-antd-datepicker,
+.custom-antd-number-input {
+  background-color: rgba(255, 255, 255, 0.02) !important;
+  border-color: rgba(255, 255, 255, 0.05) !important;
+  color: #fff !important;
+  border-radius: 12px !important;
+}
+
+.custom-antd-select .ant-select-arrow,
+.custom-antd-form-select .ant-select-arrow {
+  color: #9ca3af !important;
+}
+
+.ticket-price-modal .ant-modal-content {
+  background: #0d111c !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.8) !important;
+  backdrop-filter: blur(20px) !important;
+}
+
+.ticket-price-modal .ant-modal-header {
+  background: transparent !important;
+}
+
+.ticket-price-modal .ant-modal-title {
+  color: #ffd54a !important;
+}
+
+.custom-table-pagination .ant-pagination-item-active {
+  border-color: #ff2d2d !important;
+  background: rgba(255, 45, 45, 0.1) !important;
+}
+
+.custom-table-pagination .ant-pagination-item-active a {
+  color: #ff2d2d !important;
+}
+
