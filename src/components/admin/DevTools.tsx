@@ -3,21 +3,21 @@ import { useAuth } from '../../hooks/useAuth';
 import { useToast } from '../../contexts/ToastContext';
 import { apiClient } from '../../api/client';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  Settings, 
-  RefreshCw, 
-  UserCheck, 
-  Copy, 
-  X, 
-  Sparkles, 
-  AlertCircle 
+import {
+  Settings,
+  RefreshCw,
+  UserCheck,
+  Copy,
+  X,
+  Sparkles,
+  AlertCircle
 } from 'lucide-react';
 import type { AuthResponse } from '../../types';
 
 export const DevTools: React.FC = () => {
   const { login, logout, user, isAuthenticated } = useAuth();
   const { showToast } = useToast();
-  
+
   const [isOpen, setIsOpen] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
 
@@ -25,13 +25,13 @@ export const DevTools: React.FC = () => {
     {
       role: 'Admin (Quản trị)',
       email: 'admin@gmail.com',
-      password: 'Password123',
+      password: '123',
       desc: 'Quản lý phim, rạp chiếu, lịch và chương trình khuyến mãi.'
     },
     {
       role: 'User (Khách hàng)',
       email: 'user@gmail.com',
-      password: 'Password123',
+      password: '123',
       desc: 'Đặt vé xem phim, giữ ghế thời gian thực, xem vé và thông báo.'
     }
   ];
@@ -46,7 +46,7 @@ export const DevTools: React.FC = () => {
       showToast('Đang đăng nhập tự động...', 'info');
       const response = await apiClient.post<AuthResponse>('/auth/login', {
         email,
-        password: 'Password123'
+        password: '123'
       });
       login(response.data);
       showToast('Đăng nhập thành công!', 'success');

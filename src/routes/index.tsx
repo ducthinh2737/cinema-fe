@@ -4,6 +4,7 @@ import { useAuth } from '../hooks/useAuth';
 import { MainLayout } from '../layouts/MainLayout.tsx';
 import { AuthLayout } from '../layouts/AuthLayout.tsx';
 import { AdminLayout } from '../layouts/AdminLayout.tsx';
+
 import {
   Home,
   MovieDetails,
@@ -19,7 +20,10 @@ import {
   UserProfile,
   TicketDetail,
   CinemaDetails,
-  Promotions
+  Promotions,
+  BookingCombo,
+  BookingVoucher,
+  BookingConfirm
 } from '../pages';
 
 import { ProtectedRoute, AdminRoute } from '../components';
@@ -55,6 +59,9 @@ export const AppRoutes: React.FC = () => {
         
         {/* Protected Customer Routes */}
         <Route path="/booking" element={<ProtectedRoute><SeatSelection /></ProtectedRoute>} />
+        <Route path="/booking-combo" element={<ProtectedRoute><BookingCombo /></ProtectedRoute>} />
+        <Route path="/booking-voucher" element={<ProtectedRoute><BookingVoucher /></ProtectedRoute>} />
+        <Route path="/booking-confirm" element={<ProtectedRoute><BookingConfirm /></ProtectedRoute>} />
         <Route path="/booking/:id" element={<ProtectedRoute><TicketDetail /></ProtectedRoute>} />
         <Route path="/payment" element={<ProtectedRoute><Payment /></ProtectedRoute>} />
         <Route path="/profile" element={<ProtectedRoute><UserProfile /></ProtectedRoute>} />

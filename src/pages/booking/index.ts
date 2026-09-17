@@ -6,3 +6,6 @@ export { Payment } from './Payment';
 export { PaymentResult } from './PaymentResult';
 export { TicketDetail } from './TicketDetail';
 export { CinemaDetails } from './CinemaDetails';
+export { BookingCombo } from './BookingCombo';
+export { BookingVoucher } from './BookingVoucher';
+export { BookingConfirm } from './BookingConfirm';

@@ -7,8 +7,9 @@ import { X, Sparkles, AlertTriangle, Loader2, Play, Film, Plus } from 'lucide-re
 import { MovieUpload } from './MovieComponents';
 import { Button } from '../../ui/Button';
 import { Input } from '../../ui/Input';
-import { apiClient } from '../../../api/client';
+import { apiClient, getImageUrl } from '../../../api/client';
 import type { Movie, Genre } from '../../../types';
+import { getAgeRatingCode } from '../../../utils/ageRatingHelpers';
 
 const convertToSlug = (str: string) => {
   return str
@@ -39,13 +40,14 @@ const movieSchema = z.object({
   trailerUrl: z.string().optional().default(''),
   isFeatured: z.boolean().default(false),
   status: z.enum(['NowShowing', 'ComingSoon', 'Ended', 'Hidden']).default('NowShowing'),
-  
+
   // Extra properties
   country: z.string().optional().default('Mỹ'),
   ageRatingId: z.coerce.number().default(1),
   director: z.string().optional().default(''),
   actors: z.array(z.string()).optional().default([]),
-  
+  movieFormatIds: z.array(z.coerce.number()).optional().default([]),
+
   // SEO fields
   metaTitle: z.string().optional().default(''),
   metaDescription: z.string().optional().default(''),
@@ -76,14 +78,14 @@ export const MovieModal: React.FC<MovieModalProps> = ({
   const [showDiscardWarning, setShowDiscardWarning] = useState(false);
   const [showDetailPreview, setShowDetailPreview] = useState(false);
   const [actorInput, setActorInput] = useState('');
-  
+
   // Showtimes state
   const [cinemas, setCinemas] = useState<any[]>([]);
   const [halls, setHalls] = useState<any[]>([]);
   const [loadingHalls, setLoadingHalls] = useState(false);
   const [showtimes, setShowtimes] = useState<any[]>([]);
   const [loadingShowtimes, setLoadingShowtimes] = useState(false);
-  
+
   const [selectedCinemaId, setSelectedCinemaId] = useState<number | ''>('');
   const [selectedHallId, setSelectedHallId] = useState<number | ''>('');
   const [showtimeStartTime, setShowtimeStartTime] = useState('');
@@ -95,11 +97,12 @@ export const MovieModal: React.FC<MovieModalProps> = ({
   const [dbPrices, setDbPrices] = useState<any[]>([]);
   const [dbLanguages, setDbLanguages] = useState<any[]>([]);
   const [dbAgeRatings, setDbAgeRatings] = useState<any[]>([]);
+  const [dbFormats, setDbFormats] = useState<any[]>([]);
 
   // Format price configurations nicely for admin selection
   const formatTicketType = (ticketTypeStr: string) => {
     if (!ticketTypeStr) return 'Vé thường';
-    
+
     if (ticketTypeStr.trim().startsWith('{')) {
       try {
         const obj = JSON.parse(ticketTypeStr);
@@ -112,8 +115,7 @@ export const MovieModal: React.FC<MovieModalProps> = ({
         const roomMap: Record<string, string> = {
           '2D': '2D',
           '3D': '3D',
-          'IMAX': 'IMAX',
-          '4DX': '4DX'
+          'IMAX': 'IMAX'
         };
         const dayMap: Record<string, string> = {
           'Weekday': 'Ngày thường',
@@ -137,7 +139,7 @@ export const MovieModal: React.FC<MovieModalProps> = ({
         console.warn('Failed to parse ticketType JSON:', e);
       }
     }
-    
+
     const legacyMap: Record<string, string> = {
       'Standard Weekday': 'Thường - Ngày thường',
       'VIP Weekday': 'VIP - Ngày thường',
@@ -178,6 +180,7 @@ export const MovieModal: React.FC<MovieModalProps> = ({
       ageRatingId: 1,
       director: '',
       actors: [],
+      movieFormatIds: [],
       metaTitle: '',
       metaDescription: '',
       keywords: '',
@@ -276,10 +279,25 @@ export const MovieModal: React.FC<MovieModalProps> = ({
             { ageRatingId: 6, ratingCode: 'C18', description: 'Dành riêng cho người lớn' }
           ]);
         });
+
+      apiClient.get('/movieformats')
+        .then(res => {
+          const data = res.data || [];
+          setDbFormats(data);
+        })
+        .catch(err => {
+          console.error('Failed to fetch movie formats in MovieModal', err);
+          setDbFormats([
+            { movieFormatId: 1, formatName: '2D' },
+            { movieFormatId: 2, formatName: '3D' },
+            { movieFormatId: 3, formatName: 'IMAX' }
+          ]);
+        });
     } else {
       setDbPrices([]);
       setDbLanguages([]);
       setDbAgeRatings([]);
+      setDbFormats([]);
     }
   }, [isOpen]);
 
@@ -303,6 +321,7 @@ export const MovieModal: React.FC<MovieModalProps> = ({
         isFeatured: (selectedMovie as any).isFeatured || false,
         status: (selectedMovie as any).status || 'NowShowing',
         ageRatingId: (selectedMovie as any).ageRatingId || 1,
+        movieFormatIds: selectedMovie.movieFormats?.map((f: any) => f.movieFormatId) || [],
       } : {
         title: '',
         duration: 120,
@@ -318,6 +337,7 @@ export const MovieModal: React.FC<MovieModalProps> = ({
         isFeatured: false,
         status: 'NowShowing',
         ageRatingId: 1,
+        movieFormatIds: [],
       };
 
       // Read local storage metadata
@@ -400,7 +420,7 @@ export const MovieModal: React.FC<MovieModalProps> = ({
       };
 
       await apiClient.post('/showtimes', payload);
-      
+
       // Reload
       const res = await apiClient.get('/showtimes', { params: { MovieId: selectedMovie.id, PageSize: 100 } });
       const data = res.data?.data?.items ?? res.data?.data ?? res.data ?? [];
@@ -440,6 +460,25 @@ export const MovieModal: React.FC<MovieModalProps> = ({
 
   // Submit values
   const onSubmit = async (values: any) => {
+    // Process any remaining text in actorInput before submission
+    let finalActors = [...(values.actors || [])];
+    if (actorInput.trim()) {
+      const remainingNames = actorInput
+        .split(/[,，\n]/)
+        .map(name => name.trim())
+        .filter(name => name.length > 0);
+
+      remainingNames.forEach(name => {
+        if (!finalActors.includes(name)) {
+          finalActors.push(name);
+        }
+      });
+      // Update the form values so it's correct
+      setValue('actors', finalActors);
+      values.actors = finalActors;
+      setActorInput('');
+    }
+
     const slugified = values.slug || convertToSlug(values.title);
 
     const apiPayload = {
@@ -475,10 +514,48 @@ export const MovieModal: React.FC<MovieModalProps> = ({
     if (e.key === 'Enter' || e.key === ',') {
       e.preventDefault();
       const val = actorInput.trim();
-      if (val && !watchActors.includes(val)) {
-        setValue('actors', [...watchActors, val], { shouldDirty: true });
+      if (val) {
+        const names = val
+          .split(/[,，\n]/)
+          .map(name => name.trim())
+          .filter(name => name.length > 0);
+
+        const nextActors = [...watchActors];
+        let changed = false;
+        names.forEach(name => {
+          if (!nextActors.includes(name)) {
+            nextActors.push(name);
+            changed = true;
+          }
+        });
+        if (changed) {
+          setValue('actors', nextActors, { shouldDirty: true });
+        }
         setActorInput('');
       }
+    }
+  };
+
+  const handleActorBlur = () => {
+    const val = actorInput.trim();
+    if (val) {
+      const names = val
+        .split(/[,，\n]/)
+        .map(name => name.trim())
+        .filter(name => name.length > 0);
+
+      const nextActors = [...watchActors];
+      let changed = false;
+      names.forEach(name => {
+        if (!nextActors.includes(name)) {
+          nextActors.push(name);
+          changed = true;
+        }
+      });
+      if (changed) {
+        setValue('actors', nextActors, { shouldDirty: true });
+      }
+      setActorInput('');
     }
   };
 
@@ -557,11 +634,10 @@ export const MovieModal: React.FC<MovieModalProps> = ({
                   key={tab.id}
                   type="button"
                   onClick={() => setActiveTab(tab.id as any)}
-                  className={`px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
-                    activeTab === tab.id 
-                      ? 'bg-brand-gold/15 border border-brand-gold/20 text-brand-gold shadow-[0_0_15px_rgba(229,169,59,0.06)]' 
+                  className={`px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${activeTab === tab.id
+                      ? 'bg-brand-gold/15 border border-brand-gold/20 text-brand-gold shadow-[0_0_15px_rgba(229,169,59,0.06)]'
                       : 'text-gray-400 hover:text-white bg-transparent border border-transparent'
-                  }`}
+                    }`}
                 >
                   {tab.label}
                 </button>
@@ -571,7 +647,7 @@ export const MovieModal: React.FC<MovieModalProps> = ({
             {/* Scrollable Form Body */}
             <div className="flex-1 overflow-y-auto p-6 md:p-8">
               <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-6">
-                
+
                 {/* Tab 1: General Info */}
                 {activeTab === 'info' && (
                   <div className="flex flex-col gap-4">
@@ -617,14 +693,12 @@ export const MovieModal: React.FC<MovieModalProps> = ({
                             <button
                               type="button"
                               onClick={() => field.onChange(!field.value)}
-                              className={`w-10 h-6 rounded-full p-1 transition-colors duration-300 focus:outline-none shrink-0 cursor-pointer ${
-                                field.value ? 'bg-brand-gold' : 'bg-gray-700'
-                              }`}
+                              className={`w-10 h-6 rounded-full p-1 transition-colors duration-300 focus:outline-none shrink-0 cursor-pointer ${field.value ? 'bg-brand-gold' : 'bg-gray-700'
+                                }`}
                             >
                               <div
-                                className={`bg-black w-4 h-4 rounded-full shadow-md transform duration-300 ${
-                                  field.value ? 'translate-x-4' : 'translate-x-0'
-                                }`}
+                                className={`bg-black w-4 h-4 rounded-full shadow-md transform duration-300 ${field.value ? 'translate-x-4' : 'translate-x-0'
+                                  }`}
                               />
                             </button>
                           )}
@@ -762,6 +836,44 @@ export const MovieModal: React.FC<MovieModalProps> = ({
                       />
                     </div>
 
+                    {/* Movie Formats checklist */}
+                    <div className="flex flex-col gap-1.5 text-xs">
+                      <span className="text-gray-400 font-bold uppercase tracking-wider">Định Dạng Chiếu</span>
+                      <Controller
+                        name="movieFormatIds"
+                        control={control}
+                        render={({ field }) => (
+                          <div className="flex flex-wrap gap-2.5 p-3 bg-[#121216] border border-white/5 rounded-xl">
+                            {dbFormats.map((fmt) => {
+                              const isChecked = (field.value || []).includes(fmt.movieFormatId);
+                              return (
+                                <label
+                                  key={fmt.movieFormatId}
+                                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-bold transition-all cursor-pointer select-none ${isChecked
+                                      ? 'bg-brand-gold/15 border-brand-gold/30 text-brand-gold shadow-[0_0_10px_rgba(229,169,59,0.05)]'
+                                      : 'bg-white/[0.01] border-white/5 text-gray-400 hover:text-white hover:border-white/10'
+                                    }`}
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={isChecked}
+                                    onChange={(e) => {
+                                      const nextValues = e.target.checked
+                                        ? [...(field.value || []), fmt.movieFormatId]
+                                        : (field.value || []).filter((id: number) => id !== fmt.movieFormatId);
+                                      field.onChange(nextValues);
+                                    }}
+                                    className="hidden"
+                                  />
+                                  {fmt.formatName}
+                                </label>
+                              );
+                            })}
+                          </div>
+                        )}
+                      />
+                    </div>
+
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <Input
                         type="date"
@@ -802,13 +914,14 @@ export const MovieModal: React.FC<MovieModalProps> = ({
                         value={actorInput}
                         onChange={(e) => setActorInput(e.target.value)}
                         onKeyDown={handleAddActor}
+                        onBlur={handleActorBlur}
                         className="w-full px-3 py-3 bg-[#121216] border border-white/5 focus:border-brand rounded-xl text-xs text-gray-200 focus:outline-none transition-colors font-semibold"
                       />
                       {watchActors.length > 0 && (
                         <div className="flex flex-wrap gap-2 mt-2 bg-white/[0.01] border border-white/5 p-3 rounded-xl">
                           {watchActors.map((actor: string, idx: number) => (
-                            <span 
-                              key={idx} 
+                            <span
+                              key={idx}
                               className="px-2.5 py-1 bg-white/5 border border-white/5 hover:border-brand/35 text-white text-[10px] font-bold rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer"
                               onClick={() => handleRemoveActor(idx)}
                             >
@@ -831,7 +944,7 @@ export const MovieModal: React.FC<MovieModalProps> = ({
                           <h4 className="text-[10px] text-white font-black uppercase tracking-wider flex items-center gap-1.5">
                             <Plus size={12} className="text-brand-gold" /> Thêm nhanh suất chiếu cho phim
                           </h4>
-                          
+
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             {/* Cinema Select */}
                             <div className="flex flex-col gap-1 text-xs">
@@ -965,21 +1078,21 @@ export const MovieModal: React.FC<MovieModalProps> = ({
                 {/* Save/Close Actions footer */}
                 {activeTab !== 'showtimes' && (
                   <div className="flex gap-4 border-t border-white/5 pt-6 mt-4">
-                    <Button 
-                      type="button" 
-                      variant="secondary" 
-                      fullWidth 
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      fullWidth
                       onClick={handleCloseAttempt}
                       disabled={saving}
                       className="py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-wider"
                     >
                       Hủy bỏ
                     </Button>
-                    
-                    <Button 
-                      type="submit" 
-                      variant="primary" 
-                      fullWidth 
+
+                    <Button
+                      type="submit"
+                      variant="primary"
+                      fullWidth
                       disabled={saving}
                       className="shadow-brand font-black py-3.5 rounded-2xl text-[10px] uppercase tracking-wider"
                     >
@@ -1069,7 +1182,7 @@ export const MovieModal: React.FC<MovieModalProps> = ({
                   <div className="w-full md:w-1/3 shrink-0 flex flex-col gap-3">
                     <div className="w-full aspect-[2/3] rounded-2xl overflow-hidden shadow-2xl border border-white/5 bg-[#121217]">
                       {watch('posterUrl') ? (
-                        <img src={watch('posterUrl')} alt="Poster" className="w-full h-full object-cover" />
+                        <img src={getImageUrl(watch('posterUrl'))} alt="Poster" className="w-full h-full object-cover" />
                       ) : (
                         <div className="w-full h-full flex flex-col items-center justify-center text-gray-600 bg-white/[0.01]">
                           <Film size={36} />
@@ -1080,7 +1193,7 @@ export const MovieModal: React.FC<MovieModalProps> = ({
                     {/* Age rating badge if available */}
                     <div className="flex justify-center">
                       <span className="bg-brand/10 border border-brand/25 text-brand text-[10px] font-black uppercase px-3 py-1 rounded-xl">
-                        Mác độ tuổi: {['P', 'K', 'T13', 'T16', 'T18', 'C18'][(watch('ageRatingId') ?? 1) - 1] || 'P'}
+                        Mác độ tuổi: {getAgeRatingCode(watch('ageRatingId'))}
                       </span>
                     </div>
                   </div>

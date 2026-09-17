@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Link, useLocation } from 'react-router-dom';
 import { LogOut, Ticket, Search, Film, Gift, MapPin, Award } from 'lucide-react';
 import type { User } from '../../types';
+import { getImageUrl } from '../../api/client';
 
 interface MobileMenuProps {
   isOpen: boolean;
@@ -143,7 +144,7 @@ export const MobileMenu: React.FC<MobileMenuProps> = ({
                 <div className="flex items-center gap-3 bg-white/5 border border-white/5 p-4 rounded-2xl">
                   {user.avatarUrl ? (
                     <img
-                      src={user.avatarUrl}
+                      src={getImageUrl(user.avatarUrl)}
                       alt={user.fullName}
                       className="h-10 w-10 rounded-full border border-brand-gold/30 object-cover"
                     />

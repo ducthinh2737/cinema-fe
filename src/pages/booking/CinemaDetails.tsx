@@ -1,15 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Map, AlertCircle, Loader2 } from 'lucide-react';
+import { AlertCircle, Loader2 } from 'lucide-react';
 import { apiClient } from '../../api/client';
 import type { Cinema, Showtime } from '../../types';
 import { CinemaHero } from '../../components/cinema/CinemaHero';
 import { CinemaSidebar } from '../../components/cinema/CinemaSidebar';
 import { CinemaInfo } from '../../components/cinema/CinemaInfo';
 import { CinemaGallery } from '../../components/cinema/CinemaGallery';
-import { CinemaFacilities } from '../../components/cinema/CinemaFacilities';
 import { CinemaShowtimes } from '../../components/cinema/CinemaShowtimes';
-import { PromotionSection } from '../../components/cinema/PromotionSection';
 import { useToast } from '../../contexts/ToastContext';
 
 export const CinemaDetails: React.FC = () => {
@@ -39,10 +37,15 @@ export const CinemaDetails: React.FC = () => {
         if (cinemaItems.length > 0) {
           const mapped = cinemaItems.map((c: any) => ({
             cinemaId: c.cinemaId,
-            name: c.cinemaName,
+            name: c.cinemaName || c.name || '',
             address: c.address,
             city: c.cityName || (c.cityId === 1 ? 'Hồ Chí Minh' : c.cityId === 2 ? 'Hà Nội' : c.cityId === 3 ? 'Đà Nẵng' : 'Nha Trang'),
-            imageUrl: c.imageUrl
+            imageUrl: c.imageUrl,
+            logoUrl: c.logoUrl,
+            bannerUrl: c.bannerUrl,
+            galleryUrls: c.galleryUrls,
+            phone: c.phone || c.telephone || '',
+            email: c.email || ''
           }));
           setCinemas(mapped);
 
@@ -99,6 +102,10 @@ export const CinemaDetails: React.FC = () => {
     }
   }, [cinemaIdParam, cinemas]);
 
+  const handleSelectCinema = (id: number) => {
+    setActiveCinemaId(id);
+  };
+
   const activeCinema = cinemas.find(c => c.cinemaId === activeCinemaId) || null;
 
   // Map url for Iframe Embed
@@ -107,39 +114,36 @@ export const CinemaDetails: React.FC = () => {
     : '';
 
   return (
-    <div className="flex flex-col min-h-screen bg-background pb-16">
+    <div id="cinema-details-root" className="flex flex-col min-h-screen bg-background pb-16 text-gray-200">
       {/* 1. Cinematic Hero Header */}
       <CinemaHero cinema={activeCinema} loading={cinemasLoading} />
 
       {/* Main Grid Content */}
       <div className="max-w-7xl mx-auto w-full px-6 md:px-12 mt-8 md:mt-12 flex flex-col gap-10">
-
         {error && (
-          <div className="p-5 rounded-2xl bg-red-500/10 border border-red-500/20 flex items-center gap-3 text-red-400 text-xs font-semibold text-left">
+          <div className="p-4 rounded-2xl bg-red-500/10 border border-red-500/20 flex items-center gap-3 text-red-400 text-xs font-semibold text-left">
             <AlertCircle size={18} />
             <span>{error}</span>
           </div>
         )}
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-
           {/* 2. Left Column: Cinema selection List (Tabs/Sidebar) */}
           <div className="lg:col-span-4 flex flex-col gap-4">
-            <div className="flex flex-col text-left">
-              <h3 className="text-sm font-black uppercase text-gray-500 tracking-widest pl-1">Danh Sách Hệ Thống Rạp</h3>
-              <p className="text-[10px] text-gray-400 mt-0.5">Chọn rạp để xem chi tiết thông tin và suất chiếu tương ứng.</p>
+            <div className="flex flex-col text-left mb-1">
+              <h3 className="text-sm font-black uppercase text-white tracking-wider pl-1">Danh Sách Hệ Thống Rạp</h3>
+              <p className="text-[11px] text-gray-400 mt-1 pl-1">Chọn rạp để xem chi tiết thông tin và suất chiếu tương ứng.</p>
             </div>
             <CinemaSidebar
               cinemas={cinemas}
               activeCinemaId={activeCinemaId}
-              onSelectCinema={setActiveCinemaId}
+              onSelectCinema={handleSelectCinema}
               loading={cinemasLoading}
             />
           </div>
 
           {/* Right Column: Display Active Cinema Specifications */}
           <div className="lg:col-span-8 flex flex-col gap-8">
-
             {/* 3. Lịch Chiếu Phim Section */}
             <CinemaShowtimes showtimes={showtimes} loading={showtimesLoading} />
 
@@ -147,24 +151,19 @@ export const CinemaDetails: React.FC = () => {
             <CinemaInfo cinema={activeCinema} loading={cinemasLoading} />
 
             {/* 5. Thư viện hình ảnh */}
-            {activeCinema && <CinemaGallery cinemaName={activeCinema.name || activeCinema.cinemaName || ''} />}
-
-            {/* 6. Tiện ích tại rạp */}
-            <CinemaFacilities />
+            {activeCinema && <CinemaGallery cinema={activeCinema} />}
 
             {/* 7. Google Maps Embed Iframe */}
             {activeCinema && (
-              <div className="glass-panel p-6 md:p-8 rounded-3xl border border-white/5 text-left flex flex-col gap-6 relative overflow-hidden">
-                <div className="flex items-center justify-between">
-                  <div className="flex flex-col gap-0.5">
-                    <h3 className="text-lg font-black text-white uppercase tracking-wider flex items-center gap-2">
-                      <Map size={18} className="text-brand-gold" /> Bản Đồ Vị Trí
-                    </h3>
-                    <p className="text-xs text-gray-400 mt-1">Định vị đường đi chi tiết tới {activeCinema.name}.</p>
-                  </div>
+              <div className="text-left flex flex-col gap-6 relative">
+                <div className="flex flex-col gap-1">
+                  <h3 className="text-lg font-black text-white uppercase tracking-wider">
+                    Bản Đồ Vị Trí
+                  </h3>
+                  <p className="text-xs text-gray-400 mt-1">Định vị đường đi chi tiết tới {activeCinema.name}.</p>
                 </div>
 
-                <div className="relative w-full h-[300px] md:h-[380px] rounded-2xl overflow-hidden border border-white/5 bg-black/40">
+                <div className="relative w-full h-[300px] md:h-[380px] rounded-2xl overflow-hidden bg-black/40 border border-white/5">
                   {showtimesLoading ? (
                     <div className="absolute inset-0 flex items-center justify-center bg-black/50 text-xs font-bold text-gray-400 gap-2">
                       <Loader2 size={16} className="animate-spin text-brand" /> Đang cập nhật vị trí bản đồ...
@@ -181,10 +180,6 @@ export const CinemaDetails: React.FC = () => {
                 </div>
               </div>
             )}
-
-            8. Chương trình ưu đãi
-            <PromotionSection />
-
           </div>
         </div>
       </div>

@@ -1,8 +1,10 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { MapPin, Phone, Clock, ArrowUpRight } from 'lucide-react';
+import { MapPin, Phone, ArrowUpRight } from 'lucide-react';
 import { motion } from 'framer-motion';
 import type { Cinema } from '../../types';
+
+import { getImageUrl } from '../../api/client';
 
 interface CinemaCardProps {
   cinema: Cinema;
@@ -24,7 +26,7 @@ export const CinemaCard: React.FC<CinemaCardProps> = ({ cinema }) => {
       {/* Background/Thumbnail Image */}
       <div className="relative h-44 overflow-hidden bg-black/40">
         <img
-          src={cinema.imageUrl || "https://images.unsplash.com/photo-1517604931442-7e0c8ed2963c?q=80&w=350"}
+          src={getImageUrl(cinema.imageUrl || cinema.bannerUrl) || "https://images.unsplash.com/photo-1517604931442-7e0c8ed2963c?q=80&w=350"}
           alt={cinema.name}
           className="w-full h-full object-cover group-hover:scale-105 transition-all duration-500 filter brightness-90"
         />
@@ -54,11 +56,7 @@ export const CinemaCard: React.FC<CinemaCardProps> = ({ cinema }) => {
             </span>
             <span className="flex items-center gap-2">
               <Phone size={12} className="text-brand-gold flex-shrink-0" />
-              <span>1900 2088 (máy lẻ {cinema.cinemaId})</span>
-            </span>
-            <span className="flex items-center gap-2">
-              <Clock size={12} className="text-emerald-400 flex-shrink-0" />
-              <span>08:00 - 23:30</span>
+              <span>{cinema.phone || `1900 2088 (máy lẻ ${cinema.cinemaId})`}</span>
             </span>
           </div>
         </div>

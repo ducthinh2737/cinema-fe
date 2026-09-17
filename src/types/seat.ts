@@ -68,6 +68,7 @@ export interface Seat {
   status?: "Available" | "Selected" | "Locked" | "Booked";
   lockedBy?: string;
   lockedBySession?: string;
+  price?: number;
 }
 
 export interface SeatLockPayload {

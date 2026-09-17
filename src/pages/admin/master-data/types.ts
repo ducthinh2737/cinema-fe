@@ -1,6 +1,6 @@
 import React from 'react';
 
-export type DataTab = 'genres' | 'halltypes' | 'seattypes' | 'formats' | 'languages' | 'subtitles' | 'ratings';
+export type DataTab = 'genres' | 'halltypes' | 'seattypes' | 'formats' | 'languages' | 'subtitles' | 'ratings' | 'cities';
 
 export interface MasterDataItem {
   id: number;

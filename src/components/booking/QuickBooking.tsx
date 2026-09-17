@@ -7,6 +7,7 @@ import { apiClient } from '../../api/client';
 import { selectShowtime } from '../../store/bookingSlice';
 import { useToast } from '../../contexts/ToastContext';
 import type { Movie, Showtime, Cinema } from '../../types';
+import { parseApiDate } from '../../utils/dateHelpers';
 
 interface QuickBookingProps {
   movies: Movie[];
@@ -100,15 +101,14 @@ export const QuickBooking: React.FC<QuickBookingProps> = ({ movies }) => {
     // Filter showtimes for the selected cinema
     const cinemaShowtimes = showtimes.filter((st) => st.hall?.cinemaId === selectedCinemaId);
     
-    // Extract unique dates in YYYY-MM-DD
+    // Extract unique dates in local date format (toDateString) for future showtimes only
     const distinctDates = Array.from(
       new Set(
-        cinemaShowtimes.map((st) => {
-          const d = new Date(st.startTime);
-          return d.toISOString().split('T')[0];
-        })
+        cinemaShowtimes
+          .filter((st) => parseApiDate(st.startTime).getTime() > Date.now())
+          .map((st) => parseApiDate(st.startTime).toDateString())
       )
-    ).sort();
+    ).sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
 
     setDates(distinctDates);
     setSelectedDateStr(null);
@@ -125,11 +125,12 @@ export const QuickBooking: React.FC<QuickBookingProps> = ({ movies }) => {
 
     const slots = showtimes.filter((st) => {
       const matchCinema = st.hall?.cinemaId === selectedCinemaId;
-      const matchDate = new Date(st.startTime).toISOString().split('T')[0] === selectedDateStr;
-      return matchCinema && matchDate;
+      const matchDate = parseApiDate(st.startTime).toDateString() === selectedDateStr;
+      const isFuture = parseApiDate(st.startTime).getTime() > Date.now();
+      return matchCinema && matchDate && isFuture;
     });
 
-    setAvailableSlots(slots.sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime()));
+    setAvailableSlots(slots.sort((a, b) => parseApiDate(a.startTime).getTime() - parseApiDate(b.startTime).getTime()));
     setSelectedShowtimeId(null);
   }, [selectedDateStr, selectedCinemaId, showtimes]);
 
@@ -343,7 +344,7 @@ export const QuickBooking: React.FC<QuickBookingProps> = ({ movies }) => {
             <span className="block text-[10px] text-gray-500 font-bold uppercase tracking-wider">Suất Chiếu</span>
             <span className="block text-xs font-black text-white truncate mt-0.5">
               {selectedSlot 
-                ? `${new Date(selectedSlot.startTime).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false })} (${selectedSlot.hall?.name || 'A'})` 
+                ? `${parseApiDate(selectedSlot.startTime).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false })} (${selectedSlot.hall?.name || 'A'})` 
                 : 'Chọn giờ suất chiếu...'}
             </span>
           </div>
@@ -357,7 +358,8 @@ export const QuickBooking: React.FC<QuickBookingProps> = ({ movies }) => {
                 className="absolute left-0 right-0 bottom-full mb-3 max-h-60 overflow-y-auto bg-[#0f0f15] border border-white/10 rounded-2xl shadow-2xl py-2 z-40 scrollbar-none"
               >
                 {availableSlots.map((s) => {
-                  const timeStr = new Date(s.startTime).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false });
+                  const timeStr = parseApiDate(s.startTime).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false });
+                  const isSneak = selectedMovie?.releaseDate ? parseApiDate(s.startTime) < parseApiDate(selectedMovie.releaseDate) : false;
                   return (
                     <div
                       key={s.showtimeId}
@@ -367,7 +369,14 @@ export const QuickBooking: React.FC<QuickBookingProps> = ({ movies }) => {
                       }}
                       className="px-4 py-2.5 hover:bg-indigo-500/10 hover:text-indigo-400 text-xs font-bold text-gray-300 transition-colors flex items-center justify-between"
                     >
-                      <span>{timeStr}</span>
+                      <span className="flex items-center gap-1.5">
+                        {isSneak && (
+                          <span className="bg-purple-500/20 text-purple-400 border border-purple-500/30 text-[8px] px-1.5 py-0.5 rounded uppercase font-black tracking-wider leading-none">
+                            Sớm
+                          </span>
+                        )}
+                        <span>{timeStr}</span>
+                      </span>
                       <span className="text-[10px] text-gray-500 font-semibold">{s.hall?.name || 'Phòng chiếu'}</span>
                     </div>
                   );

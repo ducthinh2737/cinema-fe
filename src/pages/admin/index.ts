@@ -6,3 +6,4 @@ export { UsersManagement } from './UsersManagement';
 export { PromotionsManagement } from './PromotionsManagement';
 export { MasterDataManagement } from './MasterDataManagement';
 export { TicketPricesManagement } from './TicketPricesManagement';
+export { CombosManagement } from './CombosManagement';

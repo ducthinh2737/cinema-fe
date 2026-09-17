@@ -2,47 +2,95 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useDispatch } from 'react-redux';
 import { clearBooking } from '../../store/bookingSlice';
-import { apiClient } from '../../api/client';
+import { apiClient, getImageUrl } from '../../api/client';
 import { useToast } from '../../contexts/ToastContext';
 import { Button } from '../../components/ui/Button';
 import { GlassCard } from '../../components/ui/GlassCard';
-import { CheckCircle2, XCircle, Loader2, Sparkles, AlertCircle } from 'lucide-react';
+import { CheckCircle2, XCircle, Loader2, AlertCircle, Clock3 } from 'lucide-react';
 import { motion } from 'framer-motion';
 
-// Inline Pure CSS/Framer Motion Confetti Component
+// Premium Center-Burst Physics Confetti Component
 const Confetti: React.FC = () => {
-  const colors = ['#e50914', '#e5a93b', '#3b82f6', '#10b981', '#a855f7'];
+  const colors = ['#e50914', '#e5a93b', '#3b82f6', '#10b981', '#a855f7', '#ff69b4'];
+  const shapes = ['circle', 'square', 'triangle'];
+
+  // Generate 65 particles for a beautiful splash effect
+  const particles = Array.from({ length: 65 }).map((_, i) => {
+    const angle = Math.random() * Math.PI * 2;
+    const distance = Math.random() * 200 + 80; // Outward velocity range
+    const x1 = Math.cos(angle) * distance;
+    const y1 = Math.sin(angle) * distance;
+
+    // Falling down under gravity with horizontal drift
+    const x2 = x1 + (Math.random() - 0.5) * 100;
+    const y2 = y1 + Math.random() * 350 + 200;
+
+    const color = colors[Math.floor(Math.random() * colors.length)];
+    const shape = shapes[Math.floor(Math.random() * shapes.length)];
+    const size = Math.random() * 8 + 6;
+    const duration = Math.random() * 1.6 + 1.4;
+    const delay = Math.random() * 0.08;
+
+    return {
+      id: i,
+      x: [0, x1, x2],
+      y: [0, y1, y2],
+      rotate: [0, Math.random() * 720 - 360],
+      scale: [0.2, 1.2, 0.3],
+      opacity: [0, 1, 1, 0],
+      duration,
+      delay,
+      color,
+      shape,
+      size,
+    };
+  });
+
   return (
-    <div className="absolute inset-0 pointer-events-none overflow-hidden z-30">
-      {[...Array(40)].map((_, i) => {
-        const color = colors[Math.floor(Math.random() * colors.length)];
-        const left = Math.random() * 100;
-        const delay = Math.random() * 0.4;
-        const duration = Math.random() * 2 + 1.2;
+    <div className="absolute inset-0 pointer-events-none z-50">
+      {particles.map((p) => {
+        let borderRadius = '0px';
+        if (p.shape === 'circle') borderRadius = '50%';
+        else if (p.shape === 'square') borderRadius = '3px';
+
+        const style: React.CSSProperties = {
+          position: 'fixed',
+          left: '50%',
+          top: '35%',
+          width: `${p.size}px`,
+          height: `${p.size}px`,
+          backgroundColor: p.shape !== 'triangle' ? p.color : 'transparent',
+          borderRadius,
+          zIndex: 9999,
+          marginLeft: `-${p.size / 2}px`,
+          marginTop: `-${p.size / 2}px`,
+        };
+
+        if (p.shape === 'triangle') {
+          style.width = '0px';
+          style.height = '0px';
+          style.borderLeft = `${p.size / 2}px solid transparent`;
+          style.borderRight = `${p.size / 2}px solid transparent`;
+          style.borderBottom = `${p.size}px solid ${p.color}`;
+        }
+
         return (
           <motion.div
-            key={i}
-            initial={{ y: -20, x: 0, rotate: 0, opacity: 1 }}
+            key={p.id}
+            initial={{ x: 0, y: 0, rotate: 0, scale: 0.2, opacity: 0 }}
             animate={{
-              y: '70vh',
-              x: (Math.random() - 0.5) * 160,
-              rotate: Math.random() * 360,
-              opacity: [1, 1, 0],
+              x: p.x,
+              y: p.y,
+              rotate: p.rotate,
+              scale: p.scale,
+              opacity: p.opacity,
             }}
             transition={{
-              duration,
-              delay,
-              ease: 'easeOut',
+              duration: p.duration,
+              delay: p.delay,
+              ease: [0.1, 0.8, 0.25, 1], // snappy explosion then drop
             }}
-            style={{
-              position: 'absolute',
-              left: `${left}%`,
-              width: '6px',
-              height: '6px',
-              backgroundColor: color,
-              borderRadius: '2px',
-              zIndex: 30
-            }}
+            style={style}
           />
         );
       })}
@@ -50,13 +98,15 @@ const Confetti: React.FC = () => {
   );
 };
 
+type ResultStatus = 'loading' | 'success' | 'pending' | 'failed';
+
 export const PaymentResult: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const dispatch = useDispatch();
   const { showToast } = useToast();
 
-  const [status, setStatus] = useState<'loading' | 'success' | 'failed'>('loading');
+  const [status, setStatus] = useState<ResultStatus>('loading');
   const [errorMessage, setErrorMessage] = useState('');
   const [details, setDetails] = useState<any>(null);
 
@@ -103,8 +153,9 @@ export const PaymentResult: React.FC = () => {
           setDetails(data);
           setErrorMessage('Vé đã bị hủy hoặc hết hạn thanh toán (vượt quá 5 phút giữ ghế).');
         } else {
-          // If still pending
-          setStatus('failed');
+          // Still pending — the transfer may simply not have been matched yet.
+          // This is not a failure, so it gets its own neutral state rather than the red "failed" treatment.
+          setStatus('pending');
           setDetails(data);
           setErrorMessage('Giao dịch chưa được hoàn tất. Vui lòng chuyển khoản đúng nội dung và chờ Admin xác nhận.');
         }
@@ -119,12 +170,12 @@ export const PaymentResult: React.FC = () => {
 
   return (
     <div className="max-w-lg mx-auto px-6 py-16 min-h-[85vh] flex flex-col justify-center select-none text-center relative overflow-hidden">
-      
+
       {/* Trigger Confetti on Success */}
       {status === 'success' && <Confetti />}
 
       <GlassCard className="border border-white/5 flex flex-col items-center gap-6 p-8 relative overflow-hidden shadow-[0_0_50px_rgba(229,9,20,0.03)]">
-        
+
         {/* Subtle decorative neon indicator top border */}
         <div className="absolute top-0 inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-brand to-transparent" />
 
@@ -139,20 +190,48 @@ export const PaymentResult: React.FC = () => {
         )}
 
         {status === 'success' && details && (
-          <div className="w-full flex flex-col items-center gap-6">
-            <div className="p-3.5 bg-green-500/10 border border-green-500/20 text-green-400 rounded-full animate-pulse">
-              <CheckCircle2 size={32} />
-            </div>
-            
-            <div>
+          <motion.div
+            initial="hidden"
+            animate="visible"
+            variants={{
+              hidden: { opacity: 0 },
+              visible: {
+                opacity: 1,
+                transition: {
+                  staggerChildren: 0.15
+                }
+              }
+            }}
+            className="w-full flex flex-col items-center gap-6"
+          >
+            <motion.div
+              variants={{
+                hidden: { scale: 0, rotate: -30 },
+                visible: { scale: 1, rotate: 0, transition: { type: 'spring', stiffness: 200, damping: 15 } }
+              }}
+              className="p-3.5 bg-green-500/10 border border-green-500/20 text-green-400 rounded-full"
+            >
+              <CheckCircle2 size={32} className="text-green-400" />
+            </motion.div>
+
+            <motion.div
+              variants={{
+                hidden: { y: 20, opacity: 0 },
+                visible: { y: 0, opacity: 1, transition: { duration: 0.5, ease: 'easeOut' } }
+              }}
+            >
               <h2 className="text-xl font-black text-white tracking-wide uppercase">Thanh toán thành công</h2>
-              <p className="text-[10px] text-gray-500 mt-1 uppercase font-bold tracking-wider flex items-center justify-center gap-1">
-                <Sparkles size={10} className="text-brand-gold" /> Vé xem phim đã được xuất
-              </p>
-            </div>
+
+            </motion.div>
 
             {/* CINEMA TICKET PREVIEW CARD */}
-            <div className="relative w-full max-w-sm bg-gradient-to-b from-[#1b1c22] to-[#121318] border border-white/5 rounded-3xl p-6 overflow-hidden text-left shadow-2xl">
+            <motion.div
+              variants={{
+                hidden: { y: 40, opacity: 0 },
+                visible: { y: 0, opacity: 1, transition: { type: 'spring', stiffness: 120, damping: 20 } }
+              }}
+              className="relative w-full max-w-sm bg-gradient-to-b from-[#1b1c22] to-[#121318] border border-white/5 rounded-3xl p-6 overflow-hidden text-left shadow-2xl"
+            >
               {/* Notched circle left */}
               <div className="absolute left-[-10px] top-[60%] w-5 h-5 bg-background rounded-full border-r border-white/5 z-20" />
               {/* Notched circle right */}
@@ -160,7 +239,7 @@ export const PaymentResult: React.FC = () => {
 
               <div className="flex gap-4">
                 <img
-                  src={details.moviePosterUrl || details.showtime?.movie?.posterUrl || 'https://images.unsplash.com/photo-1594909122845-11baa439b7bf?q=80&w=150'}
+                  src={getImageUrl(details.moviePosterUrl || details.showtime?.movie?.posterUrl) || 'https://images.unsplash.com/photo-1594909122845-11baa439b7bf?q=80&w=150'}
                   alt="Poster"
                   className="w-16 h-22 rounded-xl object-cover border border-white/10 shrink-0"
                 />
@@ -207,9 +286,9 @@ export const PaymentResult: React.FC = () => {
 
               {/* Embedded QR Code ticket */}
               <div className="flex flex-col items-center justify-center gap-1.5 mt-6 pt-4 border-t border-white/5 text-center">
-                {details.qrCodeUrl ? (
+                {details.bookingId ? (
                   <img
-                    src={details.qrCodeUrl}
+                    src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(window.location.origin + '/booking/' + details.bookingId)}`}
                     alt="QR Ticket"
                     className="w-24 h-24 bg-white p-1 rounded-lg border border-white/10 shrink-0 select-none"
                   />
@@ -220,11 +299,48 @@ export const PaymentResult: React.FC = () => {
                 )}
                 <span className="text-[8px] text-gray-500 font-black uppercase tracking-widest mt-1">Quét mã QR tại cổng để vào rạp</span>
               </div>
-            </div>
+            </motion.div>
 
-            <div className="flex flex-col sm:flex-row gap-3 w-full mt-2">
+            <motion.div
+              variants={{
+                hidden: { y: 20, opacity: 0 },
+                visible: { y: 0, opacity: 1, transition: { duration: 0.5, ease: 'easeOut' } }
+              }}
+              className="flex flex-col sm:flex-row gap-3 w-full mt-2"
+            >
               <Button variant="primary" fullWidth size="lg" onClick={() => navigate(`/profile?tab=bookings`)}>
                 Lịch sử đặt vé
+              </Button>
+              <Button variant="secondary" fullWidth size="lg" onClick={() => navigate('/')}>
+                Quay lại trang chủ
+              </Button>
+            </motion.div>
+          </motion.div>
+        )}
+
+        {/* Pending — the transfer hasn't been matched yet. Distinct from "failed":
+            amber/neutral treatment instead of red, no bounce animation, and a retry path
+            instead of only a dead end back to home. */}
+        {status === 'pending' && (
+          <div className="w-full flex flex-col items-center gap-6">
+            <div className="p-3.5 bg-amber-500/10 border border-amber-500/20 text-amber-400 rounded-full">
+              <Clock3 size={32} />
+            </div>
+
+            <div>
+              <h2 className="text-xl font-black text-white tracking-wide uppercase">Đang chờ xác nhận</h2>
+              <p className="text-xs text-amber-400/90 font-bold flex items-center justify-center gap-1 mt-1 font-sans">
+                <AlertCircle size={12} /> Chưa ghi nhận giao dịch chuyển khoản
+              </p>
+            </div>
+
+            <p className="text-xs text-gray-400 leading-relaxed font-sans max-w-sm">
+              {errorMessage || 'Giao dịch chưa được hoàn tất. Vui lòng chuyển khoản đúng nội dung và chờ hệ thống xác nhận.'}
+            </p>
+
+            <div className="flex flex-col sm:flex-row gap-3 w-full mt-4">
+              <Button variant="primary" fullWidth size="lg" onClick={() => window.location.reload()}>
+                Kiểm tra lại
               </Button>
               <Button variant="secondary" fullWidth size="lg" onClick={() => navigate('/')}>
                 Quay lại trang chủ
@@ -235,14 +351,14 @@ export const PaymentResult: React.FC = () => {
 
         {status === 'failed' && (
           <div className="w-full flex flex-col items-center gap-6">
-            <div className="p-3.5 bg-red-500/10 border border-red-500/20 text-red-400 rounded-full animate-bounce">
+            <div className="p-3.5 bg-red-500/10 border border-red-500/20 text-red-400 rounded-full">
               <XCircle size={32} />
             </div>
 
             <div>
               <h2 className="text-xl font-black text-white tracking-wide uppercase">Thanh toán chưa hoàn tất</h2>
-              <p className="text-xs text-red/80 font-bold flex items-center justify-center gap-1 mt-1 font-sans">
-                <AlertCircle size={12} /> {errorMessage.includes('hủy') ? 'Giao dịch thất bại hoặc đã bị hủy' : 'Đang chờ phê duyệt'}
+              <p className="text-xs text-red-400/90 font-bold flex items-center justify-center gap-1 mt-1 font-sans">
+                <AlertCircle size={12} /> Giao dịch thất bại hoặc đã bị hủy
               </p>
             </div>
 

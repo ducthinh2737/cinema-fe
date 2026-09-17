@@ -8,7 +8,10 @@ import {
   LogOut,
   Sliders,
   Home,
-  ShieldCheck
+  ShieldCheck,
+  Info,
+  AlertTriangle,
+  CheckCircle
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -17,6 +20,27 @@ interface AdminTopbarProps {
   isMobileOpen: boolean;
   setIsMobileOpen: (open: boolean) => void;
 }
+
+const adminNotifConfig = {
+  info: {
+    icon: Info,
+    iconColor: 'text-blue-400',
+    borderColor: 'border-blue-500/20',
+    backgroundColor: 'bg-blue-500/10',
+  },
+  alert: {
+    icon: AlertTriangle,
+    iconColor: 'text-brand',
+    borderColor: 'border-brand/20',
+    backgroundColor: 'bg-brand/10',
+  },
+  success: {
+    icon: CheckCircle,
+    iconColor: 'text-emerald-400',
+    borderColor: 'border-emerald-500/20',
+    backgroundColor: 'bg-emerald-500/10',
+  },
+};
 
 export const AdminTopbar: React.FC<AdminTopbarProps> = ({
   isMobileOpen,
@@ -93,30 +117,63 @@ export const AdminTopbar: React.FC<AdminTopbarProps> = ({
               <>
                 <div className="fixed inset-0 z-30" onClick={() => setNotifOpen(false)} />
                 <motion.div
-                  initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                  initial={{ opacity: 0, y: 15, scale: 0.95 }}
                   animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                  transition={{ duration: 0.15 }}
-                  className="absolute right-0 mt-3.5 w-80 bg-[#121217] border border-white/10 rounded-2xl p-4 shadow-2xl z-40 text-left backdrop-blur-xl"
+                  exit={{ opacity: 0, y: 15, scale: 0.95 }}
+                  transition={{ duration: 0.2, ease: 'easeOut' }}
+                  className="absolute right-0 mt-3.5 w-80 md:w-96 bg-[#0f0f12]/95 border border-white/10 rounded-2xl shadow-[0_10px_50px_rgba(0,0,0,0.8)] backdrop-blur-xl overflow-hidden z-40 text-left select-none"
                 >
-                  <div className="flex items-center justify-between border-b border-white/5 pb-2.5 mb-2.5">
-                    <span className="text-xs font-black uppercase tracking-widest text-white">Cảnh báo hệ thống</span>
-                    <span className="text-[9px] bg-brand/10 border border-brand/20 text-brand px-2 py-0.5 rounded-full font-black uppercase tracking-wider">
-                      3 hoạt động
+                  {/* Header */}
+                  <div className="flex items-center justify-between px-5 py-4 border-b border-white/5 bg-white/[0.02]">
+                    <div className="flex items-center gap-2">
+                      <div className="h-2 w-2 rounded-full bg-brand animate-pulse shadow-[0_0_8px_#e50914]" />
+                      <span className="font-extrabold text-xs tracking-wider text-white uppercase">Cảnh Báo Hệ Thống</span>
+                    </div>
+                    <span className="bg-brand/20 text-brand text-[10px] font-black px-2 py-0.5 rounded-full border border-brand/20">
+                      3 HOẠT ĐỘNG
                     </span>
                   </div>
 
-                  <div className="flex flex-col gap-2.5 max-h-60 overflow-y-auto">
-                    {adminNotifications.map((notif) => (
-                      <div key={notif.id} className="p-2.5 hover:bg-white/5 rounded-xl border border-white/[0.02] flex flex-col gap-0.5 transition-colors">
-                        <div className="flex justify-between items-center">
-                          <span className="text-xs font-bold text-white leading-none">{notif.title}</span>
-                          <span className="text-[8px] text-gray-500 font-bold uppercase tracking-wider">{notif.time}</span>
+                  {/* Body */}
+                  <div className="max-h-[300px] overflow-y-auto divide-y divide-white/5 scrollbar-thin scrollbar-thumb-white/10 hover:scrollbar-thumb-white/20 scrollbar-track-transparent custom-scrollbar">
+                    {adminNotifications.map((notif) => {
+                      const typeKey = (notif.type || 'info') as keyof typeof adminNotifConfig;
+                      const config = adminNotifConfig[typeKey] || adminNotifConfig.info;
+                      const IconComponent = config.icon;
+
+                      return (
+                        <div
+                          key={notif.id}
+                          className="group p-4 flex gap-3.5 hover:bg-white/[0.02] transition-all duration-200 relative overflow-hidden border-l-[3px] border-l-transparent hover:border-l-brand hover:-translate-y-0.5 hover:shadow-[0_4px_12px_rgba(0,0,0,0.5)] hover:border-white/10 cursor-default"
+                        >
+                          {/* Icon */}
+                          <div className="flex-shrink-0 mt-0.5">
+                            <div className={`h-8 w-8 rounded-lg border flex items-center justify-center shadow-inner transition-transform duration-200 group-hover:scale-110 ${config.borderColor} ${config.backgroundColor}`}>
+                              <IconComponent size={15} className={`${config.iconColor}`} />
+                            </div>
+                          </div>
+
+                          {/* Details */}
+                          <div className="flex-grow min-w-0 pr-2">
+                            <div className="flex items-baseline justify-between gap-2">
+                              <span className="text-xs font-bold text-gray-200 truncate group-hover:text-brand-gold transition-colors duration-200">
+                                {notif.title}
+                              </span>
+                              <span className="text-[9px] text-gray-500 font-mono whitespace-nowrap">
+                                {notif.time}
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-gray-400 mt-1 leading-relaxed break-words">
+                              {notif.desc}
+                            </p>
+                          </div>
                         </div>
-                        <span className="text-[10px] text-gray-400 mt-1 leading-normal">{notif.desc}</span>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
+
+                  {/* Overlay Glow Effect */}
+                  <div className="absolute bottom-0 left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-brand-gold/30 to-transparent pointer-events-none" />
                 </motion.div>
               </>
             )}

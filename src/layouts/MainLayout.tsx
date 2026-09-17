@@ -14,6 +14,8 @@ import {
 import type { Notification } from '../types';
 import { Navbar } from '../components/layout/Navbar';
 import { Footer } from '../components/layout/Footer';
+import { apiClient } from '../api/client';
+import { updateUser } from '../store/authSlice';
 
 export const MainLayout: React.FC = () => {
   const { user, isAuthenticated, logout } = useAuth();
@@ -32,6 +34,14 @@ export const MainLayout: React.FC = () => {
   useEffect(() => {
     if (isAuthenticated) {
       dispatch(fetchNotifications(8));
+      
+      // Fetch latest user profile details (like membershipPoints) to ensure UI displays correct values
+      apiClient.get('/users/profile')
+        .then(res => {
+          const profile = res.data?.data ?? res.data;
+          dispatch(updateUser(profile));
+        })
+        .catch(err => console.error("Error updating user profile points in layout", err));
     }
   }, [isAuthenticated, dispatch]);
 

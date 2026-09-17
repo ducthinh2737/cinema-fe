@@ -4,6 +4,7 @@ import { apiClient } from '../../api/client';
 import { Button } from '../../components/ui/Button';
 import { useToast } from '../../contexts/ToastContext';
 import type { Movie, Genre } from '../../types';
+import { getAgeRatingCode } from '../../utils/ageRatingHelpers';
 import {
   MovieTable,
   AdminMovieCard,
@@ -181,8 +182,7 @@ export const MoviesManagement: React.FC = () => {
     // Filter age rating
     if (selectedAgeRating) {
       result = result.filter(m => {
-        const ratings = ['P', 'K', 'T13', 'T16', 'T18', 'C18'];
-        const code = ratings[(m.ageRatingId ?? 1) - 1] || 'P';
+        const code = getAgeRatingCode(m.ageRatingId);
         return code === selectedAgeRating;
       });
     }
@@ -252,6 +252,7 @@ export const MoviesManagement: React.FC = () => {
 
   // Operations CRUD logic
   const handleOpenAdd = () => {
+    localStorage.removeItem('movie_meta_temp');
     setSelectedMovie(null);
     setModalDefaultTab('info');
     setIsFormOpen(true);
@@ -328,6 +329,7 @@ export const MoviesManagement: React.FC = () => {
         }
 
         showToast('Phim mới đã được thêm thành công.', 'success');
+        localStorage.removeItem('movie_meta_temp');
       }
       setIsFormOpen(false);
       fetchMovies();
@@ -404,7 +406,7 @@ export const MoviesManagement: React.FC = () => {
     const headers = ['Mã phim', 'Tên phim', 'Thể loại', 'Thời lượng (phút)', 'Ngôn ngữ', 'Ngày khởi chiếu', 'Ngày kết thúc', 'Điểm đánh giá', 'Trạng thái', 'Vé đã bán', 'Doanh thu (đ)'];
     const rows = processedMovies.map(m => {
       const stats = getMovieStats(m.id);
-      const ratingCode = ['P', 'K', 'T13', 'T16', 'T18', 'C18'][(m.ageRatingId ?? 1) - 1] || 'P';
+      const ratingCode = getAgeRatingCode(m.ageRatingId);
       return [
         m.id,
         `"${m.title.replace(/"/g, '""')}"`,

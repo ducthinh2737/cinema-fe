@@ -4,11 +4,13 @@ import {
   UploadCloud, X, AlertCircle, AlertTriangle, Loader2, Search, Filter, 
   Sparkles, Film, Calendar, Clock, TrendingUp, DollarSign, Edit3, Trash2, Eye, Play 
 } from 'lucide-react';
+import { getImageUrl } from '../../../api/client';
 import { 
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, AreaChart, Area 
 } from 'recharts';
 import { Button } from '../../ui/Button';
 import type { Movie, Genre } from '../../../types';
+import { getAgeRatingCode as getAgeRatingCodeHelper } from '../../../utils/ageRatingHelpers';
 
 // ==========================================
 // 1. MOVIE STATUS BADGE Component & Types
@@ -273,7 +275,7 @@ export const MovieUpload: React.FC<MovieUploadProps> = ({
               exit={{ opacity: 0 }}
               className="group relative w-full h-full"
             >
-              <img src={value} alt="Upload preview" className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
+              <img src={getImageUrl(value)} alt="Upload preview" className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
               <div 
                 className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1.5 backdrop-blur-xs"
                 onClick={(e) => {
@@ -792,8 +794,7 @@ export const AdminMovieCard: React.FC<AdminMovieCardProps> = ({
   const embedUrl = getYoutubeEmbedUrl(movie.trailerUrl);
 
   const getAgeRatingCode = (ratingId?: number) => {
-    const ratings = ['P', 'K', 'T13', 'T16', 'T18', 'C18'];
-    return ratings[(ratingId ?? 1) - 1] || 'P';
+    return getAgeRatingCodeHelper(ratingId);
   };
 
   const ageCode = getAgeRatingCode((movie as any).ageRatingId);

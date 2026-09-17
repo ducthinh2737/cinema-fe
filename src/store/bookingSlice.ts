@@ -1,6 +1,6 @@
 import { createSlice } from '@reduxjs/toolkit';
 import type { PayloadAction } from '@reduxjs/toolkit';
-import type { Showtime, Seat } from '../types';
+import type { Showtime, Seat, OrderCombo } from '../types';
 
 interface BookingState {
   selectedShowtime: Showtime | null;
@@ -12,9 +12,12 @@ interface BookingState {
   } | null;
   serviceFee: number;
   discountAmount: number;
+  pointsRedeemed: number | null;
+  pointsDiscountAmount: number;
   totalAmount: number;
   bookingId: number | null;
   bookingCode: string | null;
+  combos: OrderCombo[];
 }
 
 const initialState: BookingState = {
@@ -23,9 +26,12 @@ const initialState: BookingState = {
   appliedVoucher: null,
   serviceFee: 5000, // Standard cinema service fee 5,000 VND
   discountAmount: 0,
+  pointsRedeemed: null,
+  pointsDiscountAmount: 0,
   totalAmount: 0,
   bookingId: null,
   bookingCode: null,
+  combos: [],
 };
 
 const bookingSlice = createSlice({
@@ -37,6 +43,8 @@ const bookingSlice = createSlice({
       state.selectedSeats = [];
       state.appliedVoucher = null;
       state.discountAmount = 0;
+      state.pointsRedeemed = null;
+      state.pointsDiscountAmount = 0;
       state.totalAmount = 0;
     },
     toggleSeatSelection(state, action: PayloadAction<Seat>) {
@@ -53,6 +61,8 @@ const bookingSlice = createSlice({
       console.log('[Redux toggleSeatSelection] After:', JSON.parse(JSON.stringify(state.selectedSeats)));
       state.appliedVoucher = null;
       state.discountAmount = 0;
+      state.pointsRedeemed = null;
+      state.pointsDiscountAmount = 0;
       state.totalAmount = 0; // recalculate later
     },
     applyVoucherSuccess(state, action: PayloadAction<{ promoCode: string; discountValue: number; discountType: string; discountAmount: number }>) {
@@ -63,6 +73,14 @@ const bookingSlice = createSlice({
     removeVoucher(state) {
       state.appliedVoucher = null;
       state.discountAmount = 0;
+    },
+    applyPointsSuccess(state, action: PayloadAction<{ pointsRedeemed: number; pointsDiscountAmount: number }>) {
+      state.pointsRedeemed = action.payload.pointsRedeemed;
+      state.pointsDiscountAmount = action.payload.pointsDiscountAmount;
+    },
+    removePoints(state) {
+      state.pointsRedeemed = null;
+      state.pointsDiscountAmount = 0;
     },
     updateTotalAmount(state, action: PayloadAction<number>) {
       state.totalAmount = action.payload;
@@ -76,6 +94,8 @@ const bookingSlice = createSlice({
       state.selectedSeats = action.payload;
       state.appliedVoucher = null;
       state.discountAmount = 0;
+      state.pointsRedeemed = null;
+      state.pointsDiscountAmount = 0;
       state.totalAmount = 0;
     },
     clearBooking(state) {
@@ -83,9 +103,15 @@ const bookingSlice = createSlice({
       state.selectedSeats = [];
       state.appliedVoucher = null;
       state.discountAmount = 0;
+      state.pointsRedeemed = null;
+      state.pointsDiscountAmount = 0;
       state.totalAmount = 0;
       state.bookingId = null;
       state.bookingCode = null;
+      state.combos = [];
+    },
+    setBookingCombos(state, action: PayloadAction<OrderCombo[]>) {
+      state.combos = action.payload;
     }
   }
 });
@@ -95,10 +121,13 @@ export const {
   toggleSeatSelection,
   applyVoucherSuccess,
   removeVoucher,
+  applyPointsSuccess,
+  removePoints,
   updateTotalAmount,
   setBookingDetails,
   setSelectedSeats,
-  clearBooking
+  clearBooking,
+  setBookingCombos
 } = bookingSlice.actions;
 
 export default bookingSlice.reducer;

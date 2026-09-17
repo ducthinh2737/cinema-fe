@@ -1,91 +1,34 @@
-import React, { useState } from 'react';
-import { useDispatch } from 'react-redux';
-import { Calendar, Clock, MapPin, Ticket, ShieldAlert, Tag, X } from 'lucide-react';
+import React from 'react';
+import { Calendar, Clock, MapPin, Ticket, ShieldAlert } from 'lucide-react';
 import type { Showtime, Seat } from '../../types/seat';
-import { applyVoucherSuccess, removeVoucher } from '../../store/bookingSlice';
-import { apiClient, getImageUrl } from '../../api/client';
-import { useToast } from '../../contexts/ToastContext';
+import { getImageUrl } from '../../api/client';
 import { calculateTotalTicketPrice, currencyFormatter } from '../../utils/seatHelpers';
+import { parseApiDate } from '../../utils/dateHelpers';
 
 interface BookingSidebarProps {
   selectedShowtime: Showtime;
   selectedSeats: Seat[];
-  appliedVoucher: {
-    promoCode: string;
-    discountValue: number;
-    discountType: string;
-  } | null;
-  discountAmount: number;
   serviceFee: number;
   submitting: boolean;
   onCheckout: (finalTotal: number) => void;
 }
 
 /**
- * Checkout summary panel for pricing aggregation, coupon code validation, and booking completion.
+ * Simplified checkout summary panel for seat selection phase.
  */
 export const BookingSidebar: React.FC<BookingSidebarProps> = ({
   selectedShowtime,
   selectedSeats,
-  appliedVoucher,
-  discountAmount,
   serviceFee,
   submitting,
   onCheckout
 }) => {
-  const dispatch = useDispatch();
-  const { showToast } = useToast();
-  const [promoCodeInput, setPromoCodeInput] = useState('');
-  const [validatingPromo, setValidatingPromo] = useState(false);
-
   const movie = selectedShowtime.movie;
   const ticketTotal = calculateTotalTicketPrice(selectedSeats, selectedShowtime);
-  const grandTotal = Math.max(ticketTotal + serviceFee - discountAmount, 0);
-
-  const handleApplyVoucher = async () => {
-    if (!promoCodeInput.trim()) {
-      showToast('Vui lòng nhập mã giảm giá.', 'warning');
-      return;
-    }
-    if (selectedSeats.length === 0) {
-      showToast('Vui lòng chọn ghế trước khi áp dụng mã.', 'warning');
-      return;
-    }
-
-    setValidatingPromo(true);
-    try {
-      const response = await apiClient.post('/promotions/validate', {
-        promoCode: promoCodeInput.trim(),
-        totalAmount: ticketTotal
-      });
-
-      const responseData = response.data?.data ?? response.data;
-      const discount = responseData.discountAmount ?? 0;
-
-      dispatch(applyVoucherSuccess({
-        promoCode: responseData.promoCode || promoCodeInput.trim(),
-        discountValue: discount,
-        discountType: 'Fixed',
-        discountAmount: discount
-      }));
-
-      showToast('Áp dụng mã giảm giá thành công!', 'success');
-      setPromoCodeInput('');
-    } catch (err: any) {
-      const msg = err.response?.data?.message || err.response?.data?.Message || 'Mã giảm giá không hợp lệ hoặc đã hết hạn.';
-      showToast(msg, 'error');
-    } finally {
-      setValidatingPromo(false);
-    }
-  };
-
-  const handleRemoveVoucher = () => {
-    dispatch(removeVoucher());
-    showToast('Đã xóa mã giảm giá.', 'info');
-  };
+  const grandTotal = ticketTotal + serviceFee;
 
   const formatDate = (dateStr: string) => {
-    return new Date(dateStr).toLocaleDateString('vi-VN', {
+    return parseApiDate(dateStr).toLocaleDateString('vi-VN', {
       weekday: 'long',
       year: 'numeric',
       month: 'long',
@@ -94,7 +37,7 @@ export const BookingSidebar: React.FC<BookingSidebarProps> = ({
   };
 
   const formatTime = (dateStr: string) => {
-    return new Date(dateStr).toLocaleTimeString('vi-VN', {
+    return parseApiDate(dateStr).toLocaleTimeString('vi-VN', {
       hour: '2-digit',
       minute: '2-digit',
       hour12: false
@@ -114,9 +57,16 @@ export const BookingSidebar: React.FC<BookingSidebarProps> = ({
         </div>
         <div className="flex flex-col justify-center min-w-0">
           <h3 className="text-base font-black text-white truncate leading-snug">{movie?.title}</h3>
-          <span className="text-[10px] bg-brand/10 border border-brand/20 text-brand font-black uppercase px-2 py-0.5 rounded w-max mt-1 tracking-wider">
-            {selectedShowtime.hall?.hallTypeName || '2D'}
-          </span>
+          <div className="flex flex-wrap gap-1.5 mt-1 items-center">
+            <span className="text-[10px] bg-brand/10 border border-brand/20 text-brand font-black uppercase px-2 py-0.5 rounded w-max tracking-wider">
+              {selectedShowtime.hall?.hallTypeName || '2D'}
+            </span>
+            {movie?.releaseDate && parseApiDate(selectedShowtime.startTime) < parseApiDate(movie.releaseDate) && (
+              <span className="text-[10px] bg-purple-500/15 border border-purple-500/30 text-purple-400 font-black uppercase px-2 py-0.5 rounded w-max tracking-wider">
+                Suất chiếu sớm
+              </span>
+            )}
+          </div>
           <div className="flex items-center gap-3 text-xs text-gray-500 mt-2 font-medium">
             <span className="flex items-center gap-1"><Clock size={12} /> {movie?.duration} phút</span>
           </div>
@@ -170,43 +120,6 @@ export const BookingSidebar: React.FC<BookingSidebarProps> = ({
         </div>
       </div>
 
-      {/* Voucher Input */}
-      <div className="flex flex-col gap-2">
-        <span className="text-[9px] text-gray-500 font-black uppercase tracking-wider">Mã Giảm Giá</span>
-        {appliedVoucher ? (
-          <div className="flex items-center justify-between bg-emerald-500/10 border border-emerald-500/20 px-3 py-2 rounded-xl text-emerald-400 text-xs font-bold">
-            <div className="flex items-center gap-2">
-              <Tag size={12} />
-              <span>{appliedVoucher.promoCode} (-{currencyFormatter.format(discountAmount)})</span>
-            </div>
-            <button
-              onClick={handleRemoveVoucher}
-              className="p-1 hover:bg-emerald-500/20 rounded-md transition-colors cursor-pointer"
-            >
-              <X size={12} />
-            </button>
-          </div>
-        ) : (
-          <div className="flex gap-2">
-            <input
-              type="text"
-              placeholder="Nhập mã KM"
-              value={promoCodeInput}
-              onChange={(e) => setPromoCodeInput(e.target.value.toUpperCase())}
-              disabled={selectedSeats.length === 0 || validatingPromo}
-              className="flex-1 bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-white text-xs font-semibold focus:outline-none focus:border-brand-gold disabled:opacity-50 disabled:cursor-not-allowed"
-            />
-            <button
-              onClick={handleApplyVoucher}
-              disabled={selectedSeats.length === 0 || validatingPromo}
-              className="bg-brand border border-brand/20 hover:bg-brand/80 text-white font-bold text-xs px-4 py-2 rounded-xl transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {validatingPromo ? 'Đang áp dụng...' : 'Áp dụng'}
-            </button>
-          </div>
-        )}
-      </div>
-
       {/* Total Calculations */}
       <div className="flex flex-col gap-3 pt-1 text-xs">
         <div className="flex justify-between">
@@ -218,13 +131,6 @@ export const BookingSidebar: React.FC<BookingSidebarProps> = ({
           <span className="text-gray-400 font-medium">Phí dịch vụ</span>
           <span className="text-white font-bold">{currencyFormatter.format(serviceFee)}</span>
         </div>
-
-        {appliedVoucher && (
-          <div className="flex justify-between text-emerald-400 font-bold">
-            <span>Mã giảm giá</span>
-            <span>-{currencyFormatter.format(discountAmount)}</span>
-          </div>
-        )}
 
         <div className="border-t border-white/5 mt-2 pt-4 flex justify-between items-baseline">
           <span className="text-sm font-black text-white uppercase tracking-wider">Tổng cộng</span>
@@ -244,7 +150,7 @@ export const BookingSidebar: React.FC<BookingSidebarProps> = ({
             Đang xử lý...
           </>
         ) : (
-          'Tiếp Tục Thanh Toán'
+          'Tiếp tục'
         )}
       </button>
 

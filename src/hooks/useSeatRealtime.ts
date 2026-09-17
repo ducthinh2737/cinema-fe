@@ -44,6 +44,13 @@ export const useSeatRealtime = (
     }
   }, [selectedShowtime]);
 
+  // Single seat selected via booking
+  const handleSeatSelected = useCallback((showtimeId: number, seatId: number, userId: string) => {
+    if (selectedShowtime && showtimeId === selectedShowtime.showtimeId) {
+      setLockedSeats((prev) => ({ ...prev, [seatId]: { userId, sessionId: '' } }));
+    }
+  }, [selectedShowtime]);
+
   // Single seat released
   const handleSeatReleased = useCallback((showtimeId: number, seatId: number, reason?: string) => {
     if (selectedShowtime && showtimeId === selectedShowtime.showtimeId) {
@@ -116,6 +123,7 @@ export const useSeatRealtime = (
         .catch((err) => console.error('Error joining showtime room', err));
 
       on('SeatLocked', handleSeatLocked);
+      on('SeatSelected', handleSeatSelected);
       on('SeatReleased', handleSeatReleased);
       on('SeatsLocked', handleSeatsLocked);
       on('SeatsReleased', handleSeatsReleased);
@@ -124,6 +132,7 @@ export const useSeatRealtime = (
 
       return () => {
         off('SeatLocked', handleSeatLocked);
+        off('SeatSelected', handleSeatSelected);
         off('SeatReleased', handleSeatReleased);
         off('SeatsLocked', handleSeatsLocked);
         off('SeatsReleased', handleSeatsReleased);
@@ -136,6 +145,7 @@ export const useSeatRealtime = (
     isConnected,
     selectedShowtime,
     handleSeatLocked,
+    handleSeatSelected,
     handleSeatReleased,
     handleSeatsLocked,
     handleSeatsReleased,

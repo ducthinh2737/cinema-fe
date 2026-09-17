@@ -12,10 +12,13 @@ import {
   Loader2,
   AlertTriangle,
   Printer,
-  Info
+  Info,
+  CheckCircle2
 } from 'lucide-react';
 import { useToast } from '../../contexts/ToastContext';
-import { apiClient } from '../../api/client';
+import { apiClient, getImageUrl } from '../../api/client';
+import { useAuth } from '../../hooks/useAuth';
+import { parseApiDate } from '../../utils/dateHelpers';
 import type { Booking } from '../../types';
 import { GlassCard } from '../../components/ui/GlassCard';
 
@@ -23,12 +26,30 @@ export const TicketDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { showToast } = useToast();
+  const { isAdmin } = useAuth();
 
   const [booking, setBooking] = useState<Booking | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [isCheckingIn, setIsCheckingIn] = useState(false);
   const ticketRef = useRef<HTMLDivElement>(null);
+
+  const handleCheckIn = async () => {
+    if (!id || !booking) return;
+    setIsCheckingIn(true);
+    try {
+      const res = await apiClient.post<any>(`/bookings/${id}/checkin`);
+      const responseData = res.data?.data ?? res.data;
+      setBooking(responseData);
+      showToast('Check-in vé thành công!', 'success');
+    } catch (err: any) {
+      const msg = err.response?.data?.Message || 'Check-in vé thất bại.';
+      showToast(msg, 'error');
+    } finally {
+      setIsCheckingIn(false);
+    }
+  };
 
   // Fetch Booking Details
   useEffect(() => {
@@ -57,7 +78,7 @@ export const TicketDetail: React.FC = () => {
 
     const shareData = {
       title: 'Vé Xem Phim CinemaPass',
-      text: `Xem vé xem phim của tôi cho phim ${booking.showtime?.movie?.title || 'Movie'} lượng ${booking.showtime?.movie?.duration || 120} phút. Mã vé: ${booking.bookingCode}`,
+      text: `Xem vé xem phim của tôi cho phim ${booking.movieTitle || booking.showtime?.movie?.title || 'Movie'} lượng ${booking.movieDuration || booking.showtime?.movie?.duration || 120} phút. Mã vé: ${booking.bookingCode}`,
       url: window.location.href,
     };
 
@@ -91,7 +112,7 @@ export const TicketDetail: React.FC = () => {
     // Load background poster image if available, fallback to gradient
     const moviePoster = new Image();
     moviePoster.crossOrigin = 'anonymous';
-    moviePoster.src = booking.showtime?.movie?.posterUrl || 'https://images.unsplash.com/photo-1594909122845-11baa439b7bf?q=80&w=300';
+    moviePoster.src = getImageUrl(booking.moviePosterUrl) || booking.showtime?.movie?.posterUrl || 'https://images.unsplash.com/photo-1594909122845-11baa439b7bf?q=80&w=300';
 
     moviePoster.onload = () => {
       drawCanvasTicket(canvas, ctx, moviePoster);
@@ -169,7 +190,7 @@ export const TicketDetail: React.FC = () => {
 
     ctx.fillStyle = '#9e9e9e';
     ctx.font = '16px sans-serif';
-    ctx.fillText(`${booking.showtime?.movie?.duration || 120} phut • ${booking.showtime?.hall?.hallTypeName || '2D'}`, 60, 185);
+    ctx.fillText(`${booking.movieDuration || booking.showtime?.movie?.duration || 120} phut • ${booking.showtime?.hall?.hallTypeName || '2D'}`, 60, 185);
 
     // Detail rows
     ctx.fillStyle = 'rgba(255,255,255,0.4)';
@@ -185,8 +206,8 @@ export const TicketDetail: React.FC = () => {
     ctx.fillStyle = '#ffffff';
     ctx.font = 'bold 16px sans-serif';
     ctx.fillText(booking.cinemaName || 'Cinema Pass Complex', 60, 265);
-    ctx.fillText((booking.startTime || booking.showtime?.startTime) ? new Date(booking.startTime || booking.showtime!.startTime).toLocaleDateString('vi-VN') : 'N/A', 60, 335);
-    ctx.fillText((booking.startTime || booking.showtime?.startTime) ? new Date(booking.startTime || booking.showtime!.startTime).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : 'N/A', 330, 335);
+    ctx.fillText((booking.startTime || booking.showtime?.startTime) ? parseApiDate(booking.startTime || booking.showtime!.startTime).toLocaleDateString('vi-VN') : 'N/A', 60, 335);
+    ctx.fillText((booking.startTime || booking.showtime?.startTime) ? parseApiDate(booking.startTime || booking.showtime!.startTime).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : 'N/A', 330, 335);
     ctx.fillText(booking.hallName || booking.showtime?.hall?.name || 'Hall 1', 60, 405);
 
     const seatString = booking.seats?.join(', ') || booking.bookingSeats?.map(bs => `${bs.seat?.rowName || ''}${bs.seat?.seatNumber || ''}`).join(', ') || '';
@@ -200,12 +221,12 @@ export const TicketDetail: React.FC = () => {
     ctx.fillText(`${(booking.totalAmount).toLocaleString()} VND`, 330, 475);
 
     // Status Badge
-    ctx.fillStyle = booking.bookingStatus === 'Confirmed' ? '#4ade80' : booking.bookingStatus === 'Cancelled' ? '#f87171' : '#fbbf24';
+    ctx.fillStyle = booking.bookingStatus === 'Confirmed' ? '#4ade80' : booking.bookingStatus === 'CheckedIn' ? '#c084fc' : booking.bookingStatus === 'Cancelled' ? '#f87171' : '#fbbf24';
     ctx.fillRect(60, 520, 130, 32);
     ctx.fillStyle = '#000000';
     ctx.font = 'bold 12px sans-serif';
     ctx.textAlign = 'center';
-    const statusText = booking.bookingStatus === 'Confirmed' ? 'DA XAC NHAN' : booking.bookingStatus === 'Cancelled' ? 'DA HUY' : 'CHO THANH TOAN';
+    const statusText = booking.bookingStatus === 'Confirmed' ? 'DA XAC NHAN' : booking.bookingStatus === 'CheckedIn' ? 'DA CHECK-IN' : booking.bookingStatus === 'Cancelled' ? 'DA HUY' : 'CHO THANH TOAN';
     ctx.fillText(statusText, 125, 540);
 
     // 4. Draw QR Stubb Footer
@@ -217,7 +238,7 @@ export const TicketDetail: React.FC = () => {
     // Draw a high-fidelity QR Code simulation block
     const qrImg = new Image();
     qrImg.crossOrigin = 'anonymous';
-    qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${booking.bookingCode}`;
+    qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(window.location.origin + '/booking/' + booking.bookingId)}`;
 
     qrImg.onload = () => {
       ctx.drawImage(qrImg, canvas.width / 2 - 75, 700, 150, 150);
@@ -251,6 +272,8 @@ export const TicketDetail: React.FC = () => {
     switch (status) {
       case 'Confirmed':
         return 'text-green-400 border-green-500/20 bg-green-500/5';
+      case 'CheckedIn':
+        return 'text-purple-400 border-purple-500/20 bg-purple-500/5 shadow-[0_0_15px_rgba(168,85,247,0.15)]';
       case 'Cancelled':
         return 'text-brand border-brand/20 bg-brand/5';
       default:
@@ -345,7 +368,7 @@ export const TicketDetail: React.FC = () => {
             {/* Poster banner top section with glassmorphism blur */}
             <div className="relative h-48 md:h-64 overflow-hidden border-b border-white/5">
               <img
-                src={booking.showtime?.movie?.bannerUrl || 'https://images.unsplash.com/photo-1594909122845-11baa439b7bf?q=80&w=800'}
+                src={getImageUrl(booking.movieBannerUrl) || booking.showtime?.movie?.bannerUrl || 'https://images.unsplash.com/photo-1594909122845-11baa439b7bf?q=80&w=800'}
                 alt="banner"
                 className="w-full h-full object-cover filter brightness-[0.4]"
               />
@@ -354,7 +377,7 @@ export const TicketDetail: React.FC = () => {
               {/* Float info layout */}
               <div className="absolute bottom-5 inset-x-6 flex items-end gap-5">
                 <img
-                  src={booking.showtime?.movie?.posterUrl || 'https://images.unsplash.com/photo-1594909122845-11baa439b7bf?q=80&w=300'}
+                  src={getImageUrl(booking.moviePosterUrl) || booking.showtime?.movie?.posterUrl || 'https://images.unsplash.com/photo-1594909122845-11baa439b7bf?q=80&w=300'}
                   alt="Poster"
                   className="hidden md:block w-20 h-28 object-cover rounded-lg border border-white/10 shadow-lg shadow-black/50"
                 />
@@ -363,10 +386,10 @@ export const TicketDetail: React.FC = () => {
                     Vé Xem Phim
                   </span>
                   <h1 className="text-xl md:text-2xl font-black text-white uppercase mt-2 tracking-wide leading-snug drop-shadow-md">
-                    {booking.showtime?.movie?.title || 'Tên Phim'}
+                    {booking.movieTitle || booking.showtime?.movie?.title || 'Tên Phim'}
                   </h1>
                   <p className="text-xs text-gray-400 mt-1">
-                    Thời lượng: {booking.showtime?.movie?.duration || 120} phút • {booking.showtime?.hall?.hallTypeName || '2D'}
+                    Thời lượng: {booking.movieDuration || booking.showtime?.movie?.duration || 120} phút • {booking.showtime?.hall?.hallTypeName || '2D'}
                   </p>
                 </div>
               </div>
@@ -390,7 +413,7 @@ export const TicketDetail: React.FC = () => {
                   <span className="text-[10px] text-gray-500 font-extrabold uppercase tracking-widest block mb-1">Ngày chiếu</span>
                   <span className="text-xs font-bold text-white flex items-center gap-1.5">
                     <Calendar size={12} className="text-brand-gold" />
-                    {(booking.startTime || booking.showtime?.startTime) ? new Date(booking.startTime || booking.showtime!.startTime).toLocaleDateString('vi-VN') : 'N/A'}
+                    {(booking.startTime || booking.showtime?.startTime) ? parseApiDate(booking.startTime || booking.showtime!.startTime).toLocaleDateString('vi-VN') : 'N/A'}
                   </span>
                 </div>
 
@@ -398,7 +421,7 @@ export const TicketDetail: React.FC = () => {
                   <span className="text-[10px] text-gray-500 font-extrabold uppercase tracking-widest block mb-1">Giờ chiếu</span>
                   <span className="text-xs font-bold text-white flex items-center gap-1.5">
                     <Clock size={12} className="text-brand-gold" />
-                    {(booking.startTime || booking.showtime?.startTime) ? new Date(booking.startTime || booking.showtime!.startTime).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : 'N/A'}
+                    {(booking.startTime || booking.showtime?.startTime) ? parseApiDate(booking.startTime || booking.showtime!.startTime).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : 'N/A'}
                   </span>
                 </div>
 
@@ -426,7 +449,7 @@ export const TicketDetail: React.FC = () => {
                 <div>
                   <span className="text-[10px] text-gray-500 font-extrabold uppercase tracking-widest block mb-1">Trạng thái</span>
                   <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded border ${getStatusColor(booking.bookingStatus)}`}>
-                    {booking.bookingStatus === 'Confirmed' ? 'Đã xác nhận' : booking.bookingStatus === 'Cancelled' ? 'Đã hủy' : 'Chờ thanh toán'}
+                    {booking.bookingStatus === 'Confirmed' ? 'Đã xác nhận' : booking.bookingStatus === 'CheckedIn' ? 'Đã Check-in' : booking.bookingStatus === 'Cancelled' ? 'Đã hủy' : 'Chờ thanh toán'}
                   </span>
                 </div>
 
@@ -456,10 +479,10 @@ export const TicketDetail: React.FC = () => {
 
                 {/* Animated QR frame */}
                 <div className="relative p-4 bg-white rounded-2xl w-36 h-36 flex items-center justify-center shadow-lg group overflow-hidden select-none">
-                  {booking.bookingStatus === 'Confirmed' ? (
+                  {booking.bookingStatus === 'Confirmed' || booking.bookingStatus === 'CheckedIn' ? (
                     <>
                       <img
-                        src={booking.qrCodeUrl || `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${booking.bookingCode}`}
+                        src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(window.location.origin + '/booking/' + booking.bookingId)}`}
                         alt="QR Check-in"
                         className="w-32 h-32 object-contain"
                       />
@@ -489,14 +512,72 @@ export const TicketDetail: React.FC = () => {
 
         {/* Sidebar Controls & Invoice details */}
         <div className="lg:col-span-4 flex flex-col gap-6">
-          
-          {/* Action Trigger Buttons */}
+
+          {/* Admin Check-in control panel */}
+          {isAdmin && (
+            <GlassCard className="p-6 border-purple-500/30 bg-purple-500/5 shadow-[0_0_30px_rgba(168,85,247,0.05)] flex flex-col gap-3">
+              <div className="flex items-center justify-between border-b border-purple-500/10 pb-2">
+                <h3 className="text-xs font-black text-purple-300 uppercase tracking-widest">
+                  Admin Check-in
+                </h3>
+                <span className="text-[9px] bg-purple-500/20 text-purple-300 px-2 py-0.5 rounded font-black uppercase">
+                  Staff only
+                </span>
+              </div>
+
+              {booking.bookingStatus === 'Confirmed' ? (
+                <>
+                  <p className="text-[10px] text-gray-400 leading-normal">
+                    Vé này hợp lệ và sẵn sàng để check-in. Vui lòng xác nhận thông tin khách hàng trước khi bấm nút.
+                  </p>
+                  <button
+                    onClick={handleCheckIn}
+                    disabled={isCheckingIn}
+                    className="w-full py-3 bg-purple-600 hover:bg-purple-700 text-white font-black text-xs uppercase tracking-widest rounded-xl transition-all cursor-pointer flex items-center justify-center gap-2 shadow-[0_0_15px_rgba(168,85,247,0.3)]"
+                  >
+                    {isCheckingIn ? (
+                      <Loader2 size={14} className="animate-spin" />
+                    ) : (
+                      <QrCode size={14} />
+                    )}
+                    Xác nhận Check-in vé
+                  </button>
+                </>
+              ) : booking.bookingStatus === 'CheckedIn' ? (
+                <div className="text-center py-2 flex flex-col items-center gap-2">
+                  <div className="w-10 h-10 rounded-full bg-purple-500/10 border border-purple-500/20 text-purple-400 flex items-center justify-center">
+                    <CheckCircle2 size={20} />
+                  </div>
+                  <span className="text-xs font-black text-purple-400 uppercase tracking-wider block">
+                    Đã Check-in thành công
+                  </span>
+                  <p className="text-[9px] text-gray-500 leading-normal">
+                    Vé đã được sử dụng để vào cửa rạp chiếu.
+                  </p>
+                </div>
+              ) : (
+                <p className="text-[10px] text-brand leading-normal font-semibold">
+                  Vé không ở trạng thái có thể check-in (hiện tại: {booking.bookingStatus}).
+                </p>
+              )}
+            </GlassCard>
+          )}
+
           <GlassCard className="p-6 border-white/5 flex flex-col gap-3">
             <h3 className="text-xs font-black text-white uppercase tracking-widest mb-1.5">Dịch vụ vé</h3>
             
+            {booking.bookingStatus === 'Pending' && (
+              <button
+                onClick={() => navigate(`/payment?bookingId=${booking.bookingId}`)}
+                className="w-full py-3 bg-brand-gold hover:bg-brand-gold/90 text-black font-black text-xs uppercase tracking-widest rounded-xl transition-all cursor-pointer flex items-center justify-center gap-2 shadow-lg shadow-brand-gold/15 mb-2"
+              >
+                Thanh toán ngay
+              </button>
+            )}
+
             <button
               onClick={handleDownloadPNG}
-              disabled={isDownloading || booking.bookingStatus !== 'Confirmed'}
+              disabled={isDownloading || (booking.bookingStatus !== 'Confirmed' && booking.bookingStatus !== 'CheckedIn')}
               className="w-full py-3 bg-brand hover:bg-brand-hover disabled:opacity-45 disabled:pointer-events-none text-white font-black text-xs uppercase tracking-widest rounded-xl transition-all cursor-pointer flex items-center justify-center gap-2"
             >
               {isDownloading ? (
@@ -509,7 +590,7 @@ export const TicketDetail: React.FC = () => {
 
             <button
               onClick={() => window.print()}
-              disabled={booking.bookingStatus !== 'Confirmed'}
+              disabled={booking.bookingStatus !== 'Confirmed' && booking.bookingStatus !== 'CheckedIn'}
               className="w-full py-3 bg-white/5 hover:bg-white/10 disabled:opacity-45 text-white border border-white/10 font-black text-xs uppercase tracking-widest rounded-xl transition-all cursor-pointer flex items-center justify-center gap-2"
             >
               <Printer size={14} />

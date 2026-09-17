@@ -1,9 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { Movie } from '../../types';
-import { Clock, Play, Info, X } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { Clock, Play, Heart } from 'lucide-react';
+import { motion } from 'framer-motion';
 import { getImageUrl } from '../../api/client';
+import { getAgeRatingCode, getAgeRatingColorClass } from '../../utils/ageRatingHelpers';
+import { useAuth } from '../../hooks/useAuth';
+import { useToast } from '../../contexts/ToastContext';
+
 
 interface MovieCardProps {
   movie: Movie;
@@ -11,28 +15,87 @@ interface MovieCardProps {
 
 export const MovieCard: React.FC<MovieCardProps> = ({ movie }) => {
   const navigate = useNavigate();
-  const [showTrailer, setShowTrailer] = useState<string | null>(null);
+  const { isAuthenticated } = useAuth();
+  const { showToast } = useToast();
+  const [isFavorite, setIsFavorite] = useState(false);
 
-  const getYoutubeId = (url: string) => {
-    if (!url) return null;
-    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
-    const match = url.match(regExp);
-    return match && match[2].length === 11 ? match[2] : null;
-  };
+  useEffect(() => {
+    try {
+      const storedFavs = localStorage.getItem('favoriteMovies');
+      if (storedFavs) {
+        const favs = JSON.parse(storedFavs);
+        if (Array.isArray(favs)) {
+          setIsFavorite(favs.some((m: any) => m.id === movie.id));
+        }
+      }
+    } catch (err) {
+      console.error("Error loading favorite status in MovieCard", err);
+    }
+  }, [movie.id]);
 
-  const handlePlayTrailer = (e: React.MouseEvent) => {
+  useEffect(() => {
+    const handleStorageChange = () => {
+      try {
+        const storedFavs = localStorage.getItem('favoriteMovies');
+        if (storedFavs) {
+          const favs = JSON.parse(storedFavs);
+          if (Array.isArray(favs)) {
+            setIsFavorite(favs.some((m: any) => m.id === movie.id));
+          }
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    };
+    window.addEventListener('storage', handleStorageChange);
+    // Also listen to a custom local event to capture same-window localStorage changes
+    window.addEventListener('local-storage-favorites-updated', handleStorageChange);
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('local-storage-favorites-updated', handleStorageChange);
+    };
+  }, [movie.id]);
+
+  const handleToggleFavorite = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (movie.trailerUrl) {
-      const id = getYoutubeId(movie.trailerUrl);
-      if (id) setShowTrailer(id);
-    } else {
-      navigate(`/movie/${movie.slug}`);
+    if (!isAuthenticated) {
+      showToast('Vui lòng đăng nhập để lưu phim yêu thích.', 'warning');
+      return;
+    }
+    try {
+      const storedFavsStr = localStorage.getItem('favoriteMovies');
+      let favs = storedFavsStr ? JSON.parse(storedFavsStr) : [];
+      if (!Array.isArray(favs)) favs = [];
+
+      if (isFavorite) {
+        favs = favs.filter((m: any) => m.id !== movie.id);
+        setIsFavorite(false);
+        showToast('Đã xóa khỏi danh sách yêu thích.', 'success');
+      } else {
+        const favoriteMovieItem = {
+          id: movie.id,
+          title: movie.title,
+          slug: movie.slug,
+          posterUrl: movie.posterUrl,
+          genre: {
+            name: movie.genreName || movie.genre?.genreName || movie.genre?.name || 'Chưa rõ'
+          }
+        };
+        favs.push(favoriteMovieItem);
+        setIsFavorite(true);
+        showToast('Đã thêm vào danh sách yêu thích!', 'success');
+      }
+      localStorage.setItem('favoriteMovies', JSON.stringify(favs));
+      window.dispatchEvent(new Event('local-storage-favorites-updated'));
+    } catch (err) {
+      console.error("Error toggling favorite in MovieCard", err);
+      showToast('Không thể cập nhật danh sách yêu thích.', 'error');
     }
   };
 
   const handleBookTicket = (e: React.MouseEvent) => {
     e.stopPropagation();
-    navigate(`/movie/${movie.slug}/showtimes`);
+    navigate(`/movie/${movie.slug}`);
   };
 
   const getDaysRemaining = (releaseDateStr: string) => {
@@ -88,14 +151,8 @@ export const MovieCard: React.FC<MovieCardProps> = ({ movie }) => {
 
           {/* Age Rating Badge */}
           {movie.ageRatingId && (
-            <div className={`absolute top-3 right-3 px-2 py-1 rounded-lg text-[9px] font-black tracking-wider uppercase backdrop-blur-md shadow-lg border ${
-              movie.ageRatingId === 1 ? 'bg-green-600/80 border-green-500/30 text-white' :
-              movie.ageRatingId === 2 ? 'bg-blue-600/80 border-blue-500/30 text-white' :
-              movie.ageRatingId === 3 ? 'bg-orange-500/80 border-orange-500/30 text-white' :
-              movie.ageRatingId === 4 ? 'bg-red-500/80 border-red-500/30 text-white' :
-              movie.ageRatingId === 5 ? 'bg-red-850 border-red-800/30 text-white' : 'bg-pink-800/80 border-pink-700/30 text-white'
-            }`}>
-              {['P', 'K', 'T13', 'T16', 'T18', 'C18'][(movie.ageRatingId ?? 1) - 1] || 'P'}
+            <div className={`absolute top-3 right-3 px-2 py-1 rounded-lg text-[9px] font-black tracking-wider uppercase backdrop-blur-md shadow-lg border ${getAgeRatingColorClass(movie.ageRatingId)}`}>
+              {getAgeRatingCode(movie.ageRatingId)}
             </div>
           )}
           
@@ -110,19 +167,24 @@ export const MovieCard: React.FC<MovieCardProps> = ({ movie }) => {
               </h4>
             </div>
 
-            <div className="flex flex-col gap-2 w-full mt-1">
+            <div className="flex gap-2 w-full mt-1">
               <button
                 onClick={handleBookTicket}
-                className="w-full py-2 bg-brand hover:bg-brand-hover text-white text-[10px] font-black uppercase tracking-wider rounded-xl transition-all flex items-center justify-center gap-1.5 shadow-md shadow-brand/20 cursor-pointer"
+                className="flex-grow py-2 bg-brand hover:bg-brand-hover text-white text-[10px] font-black uppercase tracking-wider rounded-xl transition-all flex items-center justify-center gap-1.5 shadow-md shadow-brand/20 cursor-pointer"
               >
                 <Play size={10} fill="currentColor" /> Đặt Vé
               </button>
-              
+
               <button
-                onClick={handlePlayTrailer}
-                className="w-full py-2 bg-white/10 hover:bg-white/20 text-white text-[10px] font-black uppercase tracking-wider rounded-xl transition-all border border-white/10 flex items-center justify-center gap-1.5 cursor-pointer"
+                onClick={handleToggleFavorite}
+                className={`p-2 rounded-xl border transition-all cursor-pointer flex items-center justify-center shrink-0 ${
+                  isFavorite
+                    ? 'bg-brand/25 border-brand text-brand'
+                    : 'bg-white/10 border-white/10 text-gray-300 hover:bg-white/20 hover:text-white'
+                }`}
+                title={isFavorite ? "Xóa khỏi danh sách yêu thích" : "Thêm vào danh sách yêu thích"}
               >
-                <Info size={10} /> Chi tiết / Trailer
+                <Heart size={12} fill={isFavorite ? '#ef4444' : 'none'} className={isFavorite ? 'text-brand' : 'text-gray-300'} />
               </button>
             </div>
           </div>
@@ -145,40 +207,6 @@ export const MovieCard: React.FC<MovieCardProps> = ({ movie }) => {
           )}
         </div>
       </motion.div>
-
-      {/* Dynamic Trailer Lightbox Modal */}
-      <AnimatePresence>
-        {showTrailer && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={(e) => e.stopPropagation()}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/95 p-4 backdrop-blur-md"
-          >
-            <motion.div
-              initial={{ scale: 0.95 }}
-              animate={{ scale: 1 }}
-              exit={{ scale: 0.95 }}
-              className="relative w-full max-w-3xl aspect-video rounded-3xl overflow-hidden border border-white/10 bg-black shadow-2xl"
-            >
-              <button
-                onClick={() => setShowTrailer(null)}
-                className="absolute top-4 right-4 z-10 p-2 bg-black/60 hover:bg-black/90 text-white rounded-full border border-white/10 transition-all cursor-pointer"
-              >
-                <X size={16} />
-              </button>
-              <iframe
-                src={`https://www.youtube.com/embed/${showTrailer}?autoplay=1`}
-                title="Trailer phim"
-                className="w-full h-full"
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                allowFullScreen
-              />
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </>
   );
 };

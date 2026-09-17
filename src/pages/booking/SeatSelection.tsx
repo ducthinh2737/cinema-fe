@@ -31,7 +31,7 @@ export const SeatSelection: React.FC = () => {
   const { user } = useAuth();
   const { showToast } = useToast();
 
-  const { selectedShowtime, selectedSeats, appliedVoucher, discountAmount, serviceFee } = useSelector(
+  const { selectedShowtime, selectedSeats, serviceFee } = useSelector(
     (state: RootState) => state.booking
   );
 
@@ -113,7 +113,8 @@ export const SeatSelection: React.FC = () => {
     lockedSeats,
     bookedSeatIds,
     selectSeatRemote,
-    releaseSeatRemote
+    releaseSeatRemote,
+    seats
   );
 
   // Load seats from server
@@ -267,7 +268,6 @@ export const SeatSelection: React.FC = () => {
       const response = await apiClient.post('/bookings/create', {
         showtimeId: selectedShowtime?.showtimeId,
         seatIds: selectedSeats.map((s) => s.seatId),
-        promoCode: appliedVoucher?.promoCode || undefined,
         sessionId: sessionId
       });
 
@@ -277,8 +277,8 @@ export const SeatSelection: React.FC = () => {
       dispatch(setBookingDetails({ bookingId, bookingCode }));
       dispatch(updateTotalAmount(finalTotal));
 
-      showToast('Giữ ghế thành công! Đang chuyển hướng thanh toán...', 'success');
-      navigate('/payment');
+      showToast('Giữ ghế thành công! Chọn bắp nước kèm theo...', 'success');
+      navigate('/booking-combo');
     } catch (err: any) {
       const msg =
         err.response?.data?.Message ||
@@ -336,7 +336,7 @@ export const SeatSelection: React.FC = () => {
           {/* Top Banner details */}
           <div className="w-full flex justify-between items-center z-10">
             <span className="text-xs font-mono font-bold text-gray-500 uppercase tracking-widest">
-              Phòng chiếu: {selectedShowtime.hallName || 'A'} • Cấu trúc Rạp IMAX
+              Phòng chiếu: {selectedShowtime.hallName || 'A'} • Cấu trúc Rạp {selectedShowtime.hall?.hallTypeName || '2D'}
             </span>
             {selectedSeats.length > 0 && (
               <div
@@ -430,8 +430,6 @@ export const SeatSelection: React.FC = () => {
           <BookingSidebar
             selectedShowtime={selectedShowtime as Showtime}
             selectedSeats={selectedSeats}
-            appliedVoucher={appliedVoucher}
-            discountAmount={discountAmount}
             serviceFee={serviceFee}
             submitting={submitting}
             onCheckout={handleCheckout}

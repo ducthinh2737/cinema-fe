@@ -125,6 +125,18 @@ export const MovieTable: React.FC<MovieTableProps> = ({
                         </span>
                       )}
                     </div>
+                    {movie.movieFormats && movie.movieFormats.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {movie.movieFormats.map((fmt) => (
+                          <span 
+                            key={fmt.movieFormatId} 
+                            className="px-1.5 py-0.5 bg-white/5 border border-white/10 text-gray-400 text-[8px] font-black rounded uppercase tracking-wider scale-90 origin-left"
+                          >
+                            {fmt.formatName}
+                          </span>
+                        ))}
+                      </div>
+                    )}
                     <span className="text-[8px] font-mono text-gray-600 select-all uppercase">
                       ID: {movie.id} • SLUG: {movie.slug}
                     </span>

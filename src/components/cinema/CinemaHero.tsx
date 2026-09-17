@@ -1,8 +1,7 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { MapPin, Film, Calendar } from 'lucide-react';
 import type { Cinema } from '../../types';
+import { getImageUrl } from '../../api/client';
 
 interface CinemaHeroProps {
   cinema: Cinema | null;
@@ -11,39 +10,24 @@ interface CinemaHeroProps {
 
 export const CinemaHero: React.FC<CinemaHeroProps> = ({ cinema, loading }) => {
   return (
-    <div className="relative w-full h-[38vh] md:h-[45vh] flex items-end overflow-hidden border-b border-white/5">
-      {/* Dynamic Background Banner Image with Premium Overlays */}
+    <div className="relative w-full h-[40vh] md:h-[48vh] flex items-end overflow-hidden bg-background border-b border-white/5">
+      {/* Dynamic Background Banner Image */}
       <div className="absolute inset-0 z-0">
         <img
-          src={cinema?.imageUrl || "https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?q=80&w=1600"}
+          src={getImageUrl(cinema?.bannerUrl || cinema?.imageUrl) || "https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?q=80&w=1600"}
           alt={cinema?.name || "Cinema Banner"}
-          className="w-full h-full object-cover filter brightness-[0.35] scale-105"
+          className="w-full h-full object-cover object-center filter brightness-[0.35]"
         />
-        {/* Modern Cinematic Overlay Gradients */}
-        <div className="absolute inset-0 bg-gradient-to-t from-background via-background/40 to-transparent" />
-        <div className="absolute inset-0 bg-gradient-to-r from-background via-transparent to-background/30" />
-        <div className="absolute inset-0 bg-black/20" />
+        {/* Standard linear-gradient to top overlay */}
+        <div className="absolute inset-0 bg-gradient-to-t from-background via-background/30 to-transparent" />
       </div>
 
       {/* Hero Content */}
-      <div className="max-w-7xl mx-auto w-full px-6 md:px-12 pb-8 md:pb-12 z-10 text-left">
-        {/* Breadcrumb Navigation */}
-        <nav className="flex items-center gap-2 text-xs font-bold text-gray-400/80 mb-4 select-none">
-          <Link to="/" className="hover:text-brand transition-colors">Trang Chủ</Link>
-          <span>/</span>
-          <span className="text-brand-gold">Hệ Thống Rạp Chiếu</span>
-          {cinema && (
-            <>
-              <span>/</span>
-              <span className="text-white truncate max-w-[150px] md:max-w-none">{cinema.name}</span>
-            </>
-          )}
-        </nav>
-
+      <div className="max-w-7xl mx-auto w-full px-6 md:px-12 pb-10 md:pb-14 z-10 text-left">
         {loading ? (
           <div className="flex flex-col gap-3 max-w-lg">
-            <div className="h-10 bg-white/10 rounded-lg animate-pulse w-3/4" />
-            <div className="h-5 bg-white/5 rounded animate-pulse w-1/2" />
+            <div className="h-12 w-3/4 bg-white/5 rounded-2xl animate-pulse" />
+            <div className="h-4 w-1/2 bg-white/5 mt-2 rounded-xl animate-pulse" />
           </div>
         ) : (
           cinema && (
@@ -51,24 +35,17 @@ export const CinemaHero: React.FC<CinemaHeroProps> = ({ cinema, loading }) => {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5 }}
-              className="flex flex-col gap-3 max-w-4xl"
+              className="flex flex-col max-w-4xl gap-2"
             >
-              {/* Premium Glow City Badge */}
-              <div className="flex items-center gap-1.5 text-[10px] font-black text-brand-gold uppercase tracking-widest bg-brand-gold/10 border border-brand-gold/25 px-3 py-1 rounded-full w-max">
-                <MapPin size={10} /> {cinema.city}
-              </div>
-
-              {/* Title with Ambient Drop Shadow */}
-              <h1 className="text-3xl md:text-5xl font-black text-white tracking-tight leading-tight filter drop-shadow-[0_2px_8px_rgba(0,0,0,0.5)]">
+              {/* Premium Heading using font-sans font-black */}
+              <h1 className="text-4xl md:text-5xl font-black uppercase tracking-tight text-white leading-none">
                 {cinema.name}
               </h1>
 
-              {/* Short tagline/sub-info */}
-              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-400 font-semibold mt-1">
-                <span className="flex items-center gap-1"><Film size={12} className="text-brand" /> Phòng Chiếu Hiện Đại</span>
-                <span>•</span>
-                <span className="flex items-center gap-1"><Calendar size={12} className="text-brand-gold" /> Mở Cửa Hàng Ngày</span>
-              </div>
+              {/* Muted Subtitle address */}
+              <p className="text-xs md:text-sm text-gray-400 font-medium leading-relaxed max-w-xl">
+                {cinema.address}
+              </p>
             </motion.div>
           )
         )}

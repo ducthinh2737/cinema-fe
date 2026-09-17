@@ -1,17 +1,33 @@
 import React, { useState, useEffect } from 'react';
 import { Outlet, useNavigate } from 'react-router-dom';
+import { useDispatch } from 'react-redux';
 import { useAuth } from '../hooks/useAuth';
 import { useToast } from '../contexts/ToastContext';
 import { AdminSidebar } from '../components/admin/AdminSidebar';
 import { AdminTopbar } from '../components/admin/AdminTopbar';
+import { apiClient } from '../api/client';
+import { updateUser } from '../store/authSlice';
 
 export const AdminLayout: React.FC = () => {
-  const { user } = useAuth();
+  const { user, isAuthenticated } = useAuth();
   const navigate = useNavigate();
   const { showToast } = useToast();
+  const dispatch = useDispatch();
 
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
+
+  // Fetch profile to ensure points are updated
+  useEffect(() => {
+    if (isAuthenticated) {
+      apiClient.get('/users/profile')
+        .then(res => {
+          const profile = res.data?.data ?? res.data;
+          dispatch(updateUser(profile));
+        })
+        .catch(err => console.error("Error updating user profile in AdminLayout", err));
+    }
+  }, [isAuthenticated, dispatch]);
 
   // Security Check: Verify Admin Access
   useEffect(() => {

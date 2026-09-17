@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Edit3, Trash2, Check, X, AlertTriangle, Loader2, RefreshCw, Layers } from 'lucide-react';
+import { Edit3, Trash2, Check, X, AlertTriangle, Loader2, Layers } from 'lucide-react';
 import type { MasterDataItem, TabConfig } from './types';
 import { Button } from '../../../components/ui/Button';
 
@@ -40,11 +40,11 @@ interface StatsCardsProps {
 }
 
 export const StatsCards: React.FC<StatsCardsProps> = ({ stats, tabs }) => {
-  // We only display the first 5 counters as requested
-  const displayTabs = tabs.slice(0, 5);
+  // Display all counters in a responsive grid
+  const displayTabs = tabs;
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+    <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4">
       {displayTabs.map(tab => {
         const Icon = tab.icon;
         const count = stats[tab.id] || 0;
@@ -74,6 +74,7 @@ interface DataTableProps {
   showPriceMultiplier: boolean;
   onEdit: (item: MasterDataItem) => void;
   onToggleDelete: (item: MasterDataItem) => void;
+  onHardDelete: (item: MasterDataItem) => void;
 }
 
 export const DataTable: React.FC<DataTableProps> = ({
@@ -81,7 +82,8 @@ export const DataTable: React.FC<DataTableProps> = ({
   loading,
   showPriceMultiplier,
   onEdit,
-  onToggleDelete
+  onToggleDelete,
+  onHardDelete
 }) => {
   const columnsCount = showPriceMultiplier ? 6 : 5;
 
@@ -100,7 +102,7 @@ export const DataTable: React.FC<DataTableProps> = ({
           </tr>
         </thead>
         <tbody className="divide-y divide-white/5 font-semibold text-gray-300">
-          {loading ? (
+          {loading && items.length === 0 ? (
             <SkeletonLoader columnsCount={columnsCount} />
           ) : items.length === 0 ? (
             <EmptyState message='Không tìm thấy bản ghi nào khớp với điều kiện lọc. Nhấn "Thêm Mới" để tạo.' showPriceMultiplier={showPriceMultiplier} />
@@ -129,15 +131,28 @@ export const DataTable: React.FC<DataTableProps> = ({
                   })}
                 </td>
                 <td className="p-4">
-                  {item.isDeleted ? (
-                    <span className="px-2.5 py-0.5 bg-red-500/10 border border-red-500/20 text-red-500 text-[9px] font-black rounded-full uppercase tracking-wider">
-                      Ngừng sử dụng
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      disabled={loading}
+                      onClick={() => onToggleDelete(item)}
+                      className={`w-9 h-5 rounded-full p-0.5 transition-all duration-200 focus:outline-none shrink-0 disabled:opacity-50 ${
+                        !item.isDeleted
+                          ? 'bg-emerald-500/80 hover:bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.2)]'
+                          : 'bg-white/10 hover:bg-white/15'
+                      } ${loading ? 'cursor-not-allowed' : 'cursor-pointer'}`}
+                      title={!item.isDeleted ? 'Đang hoạt động - Click để tắt' : 'Đang ngừng sử dụng - Click để bật'}
+                    >
+                      <div
+                        className={`bg-white w-4 h-4 rounded-full shadow-md transform duration-200 ${
+                          !item.isDeleted ? 'translate-x-4' : 'translate-x-0'
+                        }`}
+                      />
+                    </button>
+                    <span className={`text-[10px] font-black uppercase tracking-wider select-none ${!item.isDeleted ? 'text-emerald-400' : 'text-red-500'}`}>
+                      {!item.isDeleted ? 'Bật' : 'Tắt'}
                     </span>
-                  ) : (
-                    <span className="px-2.5 py-0.5 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[9px] font-black rounded-full uppercase tracking-wider">
-                      Đang sử dụng
-                    </span>
-                  )}
+                  </div>
                 </td>
                 <td className="p-4 text-right">
                   <div className="flex gap-2 justify-end">
@@ -149,15 +164,11 @@ export const DataTable: React.FC<DataTableProps> = ({
                       <Edit3 size={12} />
                     </button>
                     <button
-                      onClick={() => onToggleDelete(item)}
-                      className={`p-2 bg-white/5 border border-white/5 rounded-xl transition-all cursor-pointer ${
-                        item.isDeleted
-                          ? 'hover:border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/5'
-                          : 'hover:border-red-500/30 text-red-500 hover:bg-red-500/5'
-                      }`}
-                      title={item.isDeleted ? 'Kích hoạt lại' : 'Ngừng hoạt động'}
+                      onClick={() => onHardDelete(item)}
+                      className="p-2 bg-white/5 border border-white/5 hover:border-red-500/30 text-red-500 rounded-xl transition-all cursor-pointer hover:bg-red-500/5"
+                      title="Xóa vật lý (Vĩnh viễn khỏi DB)"
                     >
-                      {item.isDeleted ? <RefreshCw size={12} /> : <Trash2 size={12} />}
+                      <Trash2 size={12} />
                     </button>
                   </div>
                 </td>
@@ -337,6 +348,66 @@ export const DeleteConfirmModal: React.FC<DeleteConfirmModalProps> = ({
               >
                 Đồng ý
               </Button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+    </AnimatePresence>
+  );
+};
+
+// 7. Hard Delete Confirmation Modal
+interface HardDeleteConfirmModalProps {
+  isOpen: boolean;
+  item: MasterDataItem | null;
+  onClose: () => void;
+  onConfirm: () => void;
+  loading?: boolean;
+}
+
+export const HardDeleteConfirmModal: React.FC<HardDeleteConfirmModalProps> = ({
+  isOpen,
+  item,
+  onClose,
+  onConfirm,
+  loading = false
+}) => {
+  if (!item) return null;
+
+  return (
+    <AnimatePresence>
+      {isOpen && (
+        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4">
+          <motion.div
+            initial={{ scale: 0.95, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.95, opacity: 0 }}
+            className="bg-[#121217] border border-red-500/20 rounded-3xl p-6 w-full max-w-sm text-center flex flex-col gap-4 items-center"
+          >
+            <div className="h-12 w-12 bg-red-500/10 border border-red-500/20 text-red-500 rounded-full flex items-center justify-center">
+              <AlertTriangle size={24} />
+            </div>
+            <div>
+              <h3 className="text-sm font-black text-white uppercase tracking-wider">
+                XÁC NHẬN XÓA VẬT LÝ
+              </h3>
+              <p className="text-xs text-gray-400 mt-2 font-semibold leading-relaxed">
+                Bạn có chắc chắn muốn xóa vĩnh viễn mục <strong className="text-white">"{item.name}"</strong> khỏi cơ sở dữ liệu?
+              </p>
+              <p className="text-[10px] text-red-400 mt-2 italic font-semibold">
+                * Hành động này không thể hoàn tác và hệ thống sẽ tự động kiểm tra các liên kết ràng buộc.
+              </p>
+            </div>
+            <div className="flex gap-3 w-full">
+              <Button variant="secondary" fullWidth onClick={onClose} disabled={loading}>Hủy bỏ</Button>
+              <button
+                disabled={loading}
+                onClick={onConfirm}
+                className="w-full py-2 px-4 bg-red-600 hover:bg-red-700 text-white rounded-xl font-black text-xs transition-all cursor-pointer flex items-center justify-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {loading ? <Loader2 size={12} className="animate-spin" /> : null}
+                Đồng ý xóa
+              </button>
             </div>
           </motion.div>
         </div>

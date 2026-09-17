@@ -9,6 +9,7 @@ export interface User {
   isEmailVerified: boolean;
   membershipPoints: number;
   roles?: string[];
+  tierName?: string;
 }
 
 export interface AuthResponse {
@@ -65,9 +66,23 @@ export interface Movie {
   directorName?: string;
   movieActors?: MovieActor[];
   actors?: { actorId: number; actorName: string }[];
+  movieFormats?: { movieFormatId: number; formatName: string }[];
   ageRatingId?: number;
   status?: string;
   isFeatured?: boolean;
+  averageRating?: number;
+  reviewCount?: number;
+  ratingSummary?: MovieRatingSummary;
+}
+
+export interface MovieRatingSummary {
+  averageRating: number;
+  totalReviews: number;
+  fiveStarCount: number;
+  fourStarCount: number;
+  threeStarCount: number;
+  twoStarCount: number;
+  oneStarCount: number;
 }
 
 export interface Cinema {
@@ -78,6 +93,21 @@ export interface Cinema {
   city: string;
   cityName?: string;
   imageUrl?: string;
+  cityId?: number;
+  status?: string;
+  openingTime?: string;
+  closingTime?: string;
+  googleMapsUrl?: string;
+  latitude?: number;
+  longitude?: number;
+  logoUrl?: string;
+  bannerUrl?: string;
+  galleryUrls?: string;
+  phone?: string;
+  email?: string;
+  hallCount?: number;
+  seatCount?: number;
+  createdAt?: string;
 }
 
 
@@ -85,7 +115,11 @@ export interface Hall {
   hallId: number;
   cinemaId: number;
   name: string;
+  hallName?: string;
+  hallTypeId?: number;
   hallTypeName: string;
+  capacity?: number;
+  description?: string;
 }
 
 export interface Showtime {
@@ -113,6 +147,7 @@ export interface Seat {
   seatTypeName: string; // "Standard", "VIP", "Sweetbox"
   status?: "Available" | "Selected" | "Locked" | "Booked";
   lockedBy?: string;
+  price?: number;
 }
 
 export interface BookingSeat {
@@ -132,7 +167,7 @@ export interface Booking {
   totalAmount: number;
   serviceFee: number;
   discountAmount: number;
-  bookingStatus: 'Pending' | 'Confirmed' | 'Cancelled';
+  bookingStatus: 'Pending' | 'Confirmed' | 'Cancelled' | 'CheckedIn';
   createdAt: string;
   qrCodeUrl?: string;
   bookingSeats?: BookingSeat[];
@@ -141,6 +176,20 @@ export interface Booking {
   startTime?: string;
   hallName?: string;
   cinemaName?: string;
+  moviePosterUrl?: string;
+  movieBannerUrl?: string;
+  movieDuration?: number;
+}
+
+export interface ReviewReply {
+  reviewReplyId: number;
+  reviewId: number;
+  userId: number;
+  userName: string;
+  content: string;
+  createdAt: string;
+  parentReplyId?: number;
+  parentReplyUserName?: string;
 }
 
 export interface Review {
@@ -152,7 +201,13 @@ export interface Review {
   rating: number;
   comment?: string;
   likesCount: number;
+  dislikesCount: number;
   createdAt: string;
+  isVerifiedViewer?: boolean;
+  isApproved?: boolean;
+  status: string;
+  updatedAt?: string;
+  replies: ReviewReply[];
 }
 
 export interface Notification {
@@ -170,4 +225,45 @@ export interface PagedResult<T> {
   pageNumber: number;
   pageSize: number;
   totalCount: number;
+}
+
+export interface Product {
+  id: number;
+  name: string;
+  price: number;
+  imageUrl?: string;
+  description?: string;
+  isDeleted?: boolean;
+  isActive?: boolean;
+}
+
+export interface ComboItem {
+  productId: number;
+  productName: string;
+  quantity: number;
+}
+
+export interface Combo {
+  id: number;
+  name: string;
+  description?: string;
+  imageUrl?: string;
+  price: number;
+  originalPrice?: number;
+  discountBadge?: string;
+  displayOrder: number;
+  isActive: boolean;
+  comboItems: ComboItem[];
+}
+
+export interface OrderCombo {
+  comboId: number;
+  comboName: string;
+  quantity: number;
+  price: number;
+}
+
+export interface ComboRecommendation {
+  combo: Combo;
+  reason: string;
 }

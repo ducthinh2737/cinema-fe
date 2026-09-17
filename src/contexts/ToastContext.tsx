@@ -38,11 +38,16 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   };
 
+  const isAdmin = window.location.pathname.includes('/admin');
+
   return (
     <ToastContext.Provider value={{ showToast }}>
       {children}
       {/* Toast Portal Container */}
-      <div className="fixed top-5 right-5 z-50 flex flex-col gap-3 max-w-sm w-full pointer-events-none">
+      <div className={isAdmin
+        ? "fixed top-5 left-1/2 -translate-x-1/2 z-50 flex flex-col gap-3 max-w-sm w-full pointer-events-none"
+        : "fixed top-5 right-5 z-50 flex flex-col gap-3 max-w-sm w-full pointer-events-none"
+      }>
         <AnimatePresence>
           {toasts.map((toast) => (
             <motion.div

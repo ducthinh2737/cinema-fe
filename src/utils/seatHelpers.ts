@@ -4,6 +4,9 @@ import type { Seat, Showtime } from '../types/seat';
  * Calculates ticket price for a seat based on showtime base price and seat type multiplier.
  */
 export const getTicketPrice = (seat: Seat, showtime: Showtime): number => {
+  if (seat.price !== undefined && seat.price !== null) {
+    return seat.price;
+  }
   const basePrice = showtime.priceValue || 75000;
   let multiplier = 1.0;
   if (seat.seatTypeName === 'VIP') {
@@ -41,4 +44,18 @@ export const groupSeatsByRow = (seats: Seat[]): Record<string, Seat[]> => {
     groups[row].push(seat);
     return groups;
   }, {} as Record<string, Seat[]>);
+};
+
+/**
+ * Checks if a seat type name corresponds to a couple/sweetbox seat.
+ */
+export const isCoupleSeat = (seatTypeName: string): boolean => {
+  const name = (seatTypeName || '').toUpperCase();
+  return (
+    name.includes('COUPLE') ||
+    name.includes('SWEETBOX') ||
+    name.includes('ĐÔI') ||
+    name.includes('LOVE') ||
+    name.includes('DOUBLE')
+  );
 };

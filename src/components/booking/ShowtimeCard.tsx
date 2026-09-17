@@ -2,6 +2,7 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { Clock, Armchair, Sparkles } from 'lucide-react';
 import type { Showtime } from '../../types';
+import { parseApiDate } from '../../utils/dateHelpers';
 
 interface ShowtimeCardProps {
   showtime: Showtime;
@@ -16,8 +17,8 @@ export const ShowtimeCard: React.FC<ShowtimeCardProps> = ({
   onSelect,
   basePrice = 80000 // fallback base price
 }) => {
-  const start = new Date(showtime.startTime);
-  const end = new Date(showtime.endTime);
+  const start = parseApiDate(showtime.startTime);
+  const end = parseApiDate(showtime.endTime);
   const timeStr = start.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false });
   const endTimeStr = end.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false });
 

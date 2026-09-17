@@ -4,7 +4,7 @@ import { jwtDecode } from 'jwt-decode';
 import { motion } from 'framer-motion';
 import { Film } from 'lucide-react';
 import { tokenStorage } from '../../utils/token';
-import { loginSuccess, logout } from '../../store/authSlice';
+import { loginSuccess, logout, updateUser } from '../../store/authSlice';
 import { apiClient } from '../../api/client';
 
 interface DecodedToken {
@@ -80,6 +80,16 @@ export const AuthGuard: React.FC<AuthGuardProps> = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    const fetchUserProfile = async () => {
+      try {
+        const response = await apiClient.get('/users/profile');
+        const profile = response.data?.data ?? response.data;
+        dispatch(updateUser(profile));
+      } catch (err) {
+        console.error('Failed to fetch user profile in AuthGuard:', err);
+      }
+    };
+
     const initializeAuth = async () => {
       const token = tokenStorage.getAccessToken();
       const refreshToken = tokenStorage.getRefreshToken();
@@ -112,6 +122,7 @@ export const AuthGuard: React.FC<AuthGuardProps> = ({ children }) => {
           fullName: decoded.fullName,
           roles: decoded.roles,
         }));
+        fetchUserProfile();
         setLoading(false);
         return;
       }
@@ -136,6 +147,7 @@ export const AuthGuard: React.FC<AuthGuardProps> = ({ children }) => {
             fullName: newDecoded.fullName,
             roles: newDecoded.roles,
           }));
+          fetchUserProfile();
         } else {
           dispatch(logout());
         }

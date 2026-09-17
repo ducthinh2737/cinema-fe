@@ -28,14 +28,15 @@ export const useMasterData = (activeTab: DataTab) => {
     try {
       const counts: Record<string, number> = {};
 
-      const [genres, halltypes, seattypes, formats, languages, subtitles, ratings] = await Promise.all([
+      const [genres, halltypes, seattypes, formats, languages, subtitles, ratings, cities] = await Promise.all([
         apiClient.get<any[]>('/genres'),
         apiClient.get<any[]>('/halltypes'),
         apiClient.get<any[]>('/seattypes'),
         apiClient.get<any[]>('/movieformats'),
         apiClient.get<any[]>('/languages'),
         apiClient.get<any[]>('/subtitletypes'),
-        apiClient.get<any[]>('/ageratings')
+        apiClient.get<any[]>('/ageratings'),
+        apiClient.get<any[]>('/cities')
       ]);
 
       counts.genres = (genres.data || []).length;
@@ -45,6 +46,7 @@ export const useMasterData = (activeTab: DataTab) => {
       counts.languages = (languages.data || []).length;
       counts.subtitles = (subtitles.data || []).length;
       counts.ratings = (ratings.data || []).length;
+      counts.cities = (cities.data || []).length;
 
       setStats(counts);
     } catch (e) {
@@ -62,7 +64,8 @@ export const useMasterData = (activeTab: DataTab) => {
                        activeTab === 'formats' ? '/movieformats' :
                        activeTab === 'languages' ? '/languages' :
                        activeTab === 'subtitles' ? '/subtitletypes' :
-                       '/ageratings';
+                       activeTab === 'ratings' ? '/ageratings' :
+                       '/cities';
       
       const res = await apiClient.get<any[]>(endpoint);
       const rawData = res.data || [];
@@ -118,6 +121,12 @@ export const useMasterData = (activeTab: DataTab) => {
           description = item.description ?? '';
           createdAt = item.createdAt ?? createdAt;
           isDeleted = item.isDeleted ?? false;
+        } else if (activeTab === 'cities') {
+          id = item.cityId;
+          name = item.cityName;
+          description = 'Khu vực hoạt động rạp chiếu';
+          createdAt = createdAt;
+          isDeleted = false;
         }
 
         return {
@@ -216,6 +225,10 @@ export const useMasterData = (activeTab: DataTab) => {
           ratingCode: trimmedName,
           description: payload.description.trim()
         });
+      } else if (activeTab === 'cities') {
+        await apiClient.post('/cities', {
+          cityName: trimmedName
+        });
       }
 
       showToast('Thêm mới dữ liệu thành công!', 'success');
@@ -287,6 +300,10 @@ export const useMasterData = (activeTab: DataTab) => {
           description: payload.description.trim(),
           isDeleted: currentDeletedState
         });
+      } else if (activeTab === 'cities') {
+        await apiClient.put(`/cities/${id}`, {
+          cityName: trimmedName
+        });
       }
 
       showToast('Cập nhật dữ liệu thành công!', 'success');
@@ -303,6 +320,10 @@ export const useMasterData = (activeTab: DataTab) => {
 
   // Soft delete / Toggle active status
   const toggleItemDeleteStatus = useCallback(async (id: number) => {
+    if (activeTab === 'cities') {
+      showToast('Tỉnh/thành phố không hỗ trợ tạm ngưng sử dụng. Hãy chọn Xóa vật lý nếu cần thiết.', 'info');
+      return false;
+    }
     setLoading(true);
     try {
       const itemToUpdate = allItems.find(i => i.id === id);
@@ -370,6 +391,33 @@ export const useMasterData = (activeTab: DataTab) => {
     }
   }, [activeTab, allItems, fetchData, showToast]);
 
+  // Hard delete / physical delete
+  const hardDeleteItem = useCallback(async (id: number) => {
+    setLoading(true);
+    try {
+      const endpoint = activeTab === 'genres' ? `/genres/${id}/hard` :
+                       activeTab === 'halltypes' ? `/halltypes/${id}/hard` :
+                       activeTab === 'seattypes' ? `/seattypes/${id}/hard` :
+                       activeTab === 'formats' ? `/movieformats/${id}/hard` :
+                       activeTab === 'languages' ? `/languages/${id}/hard` :
+                       activeTab === 'subtitles' ? `/subtitletypes/${id}/hard` :
+                       activeTab === 'ratings' ? `/ageratings/${id}/hard` :
+                       `/cities/${id}`;
+
+      await apiClient.delete(endpoint);
+      showToast('Xóa vật lý dữ liệu thành công!', 'success');
+      await fetchData();
+      return true;
+    } catch (err: any) {
+      console.error(err);
+      const errMsg = err.response?.data?.Message || 'Không thể xóa vật lý dữ liệu này vì có liên kết với thực thể khác.';
+      showToast(errMsg, 'error');
+      return false;
+    } finally {
+      setLoading(false);
+    }
+  }, [activeTab, fetchData, showToast]);
+
   // Search & filter computed memo
   const filteredItems = useMemo(() => {
     let result = [...allItems];
@@ -406,6 +454,7 @@ export const useMasterData = (activeTab: DataTab) => {
     createItem,
     updateItem,
     toggleItemDeleteStatus,
+    hardDeleteItem,
     fetchData
   };
 };

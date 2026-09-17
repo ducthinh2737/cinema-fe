@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import { LogOut, Ticket, ShieldAlert, Award } from 'lucide-react';
 import type { User } from '../../types';
+import { getImageUrl } from '../../api/client';
 
 interface UserDropdownProps {
   user: User;
@@ -39,7 +40,7 @@ export const UserDropdown: React.FC<UserDropdownProps> = ({ user, onLogout, onCl
       >
         {user.avatarUrl ? (
           <img
-            src={user.avatarUrl}
+            src={getImageUrl(user.avatarUrl)}
             alt={user.fullName}
             className="h-10 w-10 rounded-full border border-brand-gold/30 object-cover"
           />
@@ -59,7 +60,7 @@ export const UserDropdown: React.FC<UserDropdownProps> = ({ user, onLogout, onCl
       <div className="px-5 py-2.5 bg-gradient-to-r from-brand-gold/10 via-brand-gold/5 to-transparent flex items-center justify-between border-b border-white/5">
         <span className="text-[10px] text-brand-gold uppercase tracking-widest font-black flex items-center gap-1.5">
           <Award size={12} className="stroke-[2.5]" />
-          Thành viên VIP
+          {user.tierName || 'Bronze'}
         </span>
         <span className="text-xs font-bold text-white font-mono bg-black/40 px-2 py-0.5 rounded-full border border-white/5">
           {user.membershipPoints} điểm

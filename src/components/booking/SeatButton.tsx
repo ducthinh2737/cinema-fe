@@ -1,5 +1,6 @@
 import React from 'react';
 import type { Seat } from '../../types/seat';
+import { isCoupleSeat } from '../../utils/seatHelpers';
 
 interface SeatButtonProps {
   seat: Seat;
@@ -9,6 +10,7 @@ interface SeatButtonProps {
   isBooked: boolean;
   isPending: boolean;
   onClick: (seat: Seat) => void;
+  isSweetboxLeft?: boolean;
 }
 
 /**
@@ -22,7 +24,8 @@ export const SeatButton: React.FC<SeatButtonProps> = React.memo(({
   isLockedByOthers,
   isBooked,
   isPending,
-  onClick
+  onClick,
+  isSweetboxLeft = false
 }) => {
   const getSeatStyles = () => {
     if (isBooked) {
@@ -41,16 +44,13 @@ export const SeatButton: React.FC<SeatButtonProps> = React.memo(({
       return 'bg-brand-gold/20 border border-brand-gold/40 animate-pulse cursor-wait';
     }
 
-    // Styles based on seat classification type
-    switch (seat.seatTypeName) {
-      case 'VIP':
-        return 'bg-[#2a243d] border border-purple-900/50 hover:bg-purple-800/20 hover:border-purple-500 text-purple-300';
-      case 'Sweetbox':
-        return 'bg-[#3b1b22] border border-red-950 hover:bg-red-900/20 hover:border-red-500 text-red-300';
-      case 'Standard':
-      default:
-        return 'bg-[#1b1c22] border border-gray-800 hover:bg-white/5 hover:border-gray-500 text-gray-400';
+    if (seat.seatTypeName === 'VIP') {
+      return 'bg-[#2a243d] border border-purple-900/50 hover:bg-purple-800/20 hover:border-purple-500 text-purple-300';
     }
+    if (isCoupleSeat(seat.seatTypeName)) {
+      return 'bg-[#3b1b22] border border-red-950 hover:bg-red-900/20 hover:border-red-500 text-red-300';
+    }
+    return 'bg-[#1b1c22] border border-gray-800 hover:bg-white/5 hover:border-gray-500 text-gray-400';
   };
 
   const handleClick = (e: React.MouseEvent) => {
@@ -63,10 +63,14 @@ export const SeatButton: React.FC<SeatButtonProps> = React.memo(({
     <button
       onClick={handleClick}
       disabled={isBooked || isLockedByOthers || isPending}
-      className={`w-8 h-8 rounded-lg text-[10px] font-mono flex items-center justify-center transition-all duration-200 select-none cursor-pointer ${getSeatStyles()}`}
-      title={`Ghế ${seat.rowName}${seat.seatNumber} (${seat.seatTypeName})`}
+      className={`h-8 rounded-lg text-[10px] font-mono flex items-center justify-center transition-all duration-200 select-none cursor-pointer ${
+        isSweetboxLeft ? 'w-[72px]' : 'w-8'
+      } ${getSeatStyles()}`}
+      title={`Ghế ${seat.rowName}${seat.seatNumber}${
+        isSweetboxLeft ? `-${seat.seatNumber + 1}` : ''
+      } (${seat.seatTypeName})`}
     >
-      {isBooked ? 'X' : seat.seatNumber}
+      {isBooked ? 'X' : isSweetboxLeft ? `${seat.seatNumber}-${seat.seatNumber + 1}` : seat.seatNumber}
     </button>
   );
 });

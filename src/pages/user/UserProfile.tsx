@@ -11,7 +11,6 @@ import {
   Camera,
   Calendar,
   Clock,
-  QrCode,
   Save,
   Trash2,
   ChevronLeft,
@@ -25,8 +24,9 @@ import {
 } from 'lucide-react';
 
 import { useToast } from '../../contexts/ToastContext';
-import { apiClient } from '../../api/client';
+import { apiClient, getImageUrl } from '../../api/client';
 import { updateUser } from '../../store/authSlice';
+import { parseApiDate } from '../../utils/dateHelpers';
 import type { User, Booking, Notification } from '../../types';
 import { GlassCard } from '../../components/ui/GlassCard';
 
@@ -86,6 +86,13 @@ export const UserProfile: React.FC = () => {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loadingNotifications, setLoadingNotifications] = useState(false);
 
+  // Loyalty Program States
+  const [loyaltyDashboard, setLoyaltyDashboard] = useState<any>(null);
+  const [loyaltyTransactions, setLoyaltyTransactions] = useState<any[]>([]);
+  const [loyaltyPage, setLoyaltyPage] = useState(1);
+  const [loyaltyTotalPages, setLoyaltyTotalPages] = useState(1);
+  const [loadingLoyalty, setLoadingLoyalty] = useState(false);
+
   // Redirect if not authenticated
   useEffect(() => {
     if (!isAuthenticated || !user) {
@@ -102,7 +109,7 @@ export const UserProfile: React.FC = () => {
         .then((res) => {
           const responseData = res.data?.data ?? res.data;
           const bookingItems = Array.isArray(responseData) ? responseData : responseData?.items ?? [];
-          const sorted = bookingItems.sort((a: any, b: any) => 
+          const sorted = bookingItems.sort((a: any, b: any) =>
             new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
           );
           setBookings(sorted);
@@ -114,7 +121,7 @@ export const UserProfile: React.FC = () => {
 
   // Load Favorites from LocalStorage
   useEffect(() => {
-    if (activeTab === 'favorites') {
+    const loadFavs = () => {
       try {
         const storedFavs = localStorage.getItem('favoriteMovies');
         if (storedFavs) {
@@ -125,20 +132,31 @@ export const UserProfile: React.FC = () => {
       } catch (err) {
         console.error("Error loading favorites", err);
       }
+    };
+
+    if (activeTab === 'favorites') {
+      loadFavs();
     }
+
+    window.addEventListener('local-storage-favorites-updated', loadFavs);
+    return () => window.removeEventListener('local-storage-favorites-updated', loadFavs);
   }, [activeTab]);
 
-  // Load Notifications
   const fetchNotifications = () => {
     if (user && activeTab === 'notifications') {
       setLoadingNotifications(true);
       apiClient.get<any>('/notifications')
         .then((res) => {
-          // Check if response is PagedResult or direct array
-          const items = res.data.items || res.data || [];
+          const responseData = res.data?.data ?? res.data;
+          const items = Array.isArray(responseData) 
+            ? responseData 
+            : responseData?.items ?? [];
           setNotifications(items);
         })
-        .catch((err) => console.error("Error loading notifications", err))
+        .catch((err) => {
+          console.error("Error loading notifications", err);
+          setNotifications([]);
+        })
         .finally(() => setLoadingNotifications(false));
     }
   };
@@ -146,6 +164,27 @@ export const UserProfile: React.FC = () => {
   useEffect(() => {
     fetchNotifications();
   }, [user, activeTab]);
+
+  // Load Loyalty Data Effect
+  useEffect(() => {
+    if (user && activeTab === 'loyalty') {
+      setLoadingLoyalty(true);
+      apiClient.get('/loyalty/dashboard')
+        .then(res => {
+          setLoyaltyDashboard(res.data.data || res.data);
+        })
+        .catch(err => console.error("Error loading loyalty dashboard", err));
+
+      apiClient.get(`/loyalty/transactions?page=${loyaltyPage}&pageSize=5`)
+        .then(res => {
+          const resData = res.data.data || res.data;
+          setLoyaltyTransactions(resData.items || []);
+          setLoyaltyTotalPages(resData.totalPages || 1);
+        })
+        .catch(err => console.error("Error loading loyalty transactions", err))
+        .finally(() => setLoadingLoyalty(false));
+    }
+  }, [user, activeTab, loyaltyPage]);
 
   // Trigger file selection for avatar upload
   const handleAvatarClick = () => {
@@ -273,6 +312,7 @@ export const UserProfile: React.FC = () => {
       setFavorites(updated);
       localStorage.setItem('favoriteMovies', JSON.stringify(updated));
       showToast('Đã xóa khỏi danh sách yêu thích.', 'success');
+      window.dispatchEvent(new Event('local-storage-favorites-updated'));
     } catch (err) {
       console.error(err);
     }
@@ -281,7 +321,7 @@ export const UserProfile: React.FC = () => {
   // Bookings filter logic
   const filteredBookings = bookings.filter(booking => {
     const matchesStatus = statusFilter === 'All' || booking.bookingStatus === statusFilter;
-    const matchesSearch = 
+    const matchesSearch =
       (booking.movieTitle || booking.showtime?.movie?.title || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
       booking.bookingCode.toLowerCase().includes(searchQuery.toLowerCase());
     return matchesStatus && matchesSearch;
@@ -303,6 +343,8 @@ export const UserProfile: React.FC = () => {
     switch (status) {
       case 'Confirmed':
         return 'bg-green-500/10 text-green-400 border-green-500/20';
+      case 'CheckedIn':
+        return 'bg-purple-500/10 text-purple-400 border-purple-500/20 shadow-[0_0_15px_rgba(168,85,247,0.15)]';
       case 'Cancelled':
         return 'bg-brand/10 text-brand border-brand/20';
       default:
@@ -314,7 +356,7 @@ export const UserProfile: React.FC = () => {
 
   return (
     <div className="min-h-screen pb-24 text-left select-none">
-      
+
       {/* Upper Glassmorphic Header */}
       <div className="relative border-b border-white/5 py-12 bg-gradient-to-b from-[#07070a] to-[#121217] overflow-hidden">
         {/* Dynamic Background Blur Glow */}
@@ -327,7 +369,7 @@ export const UserProfile: React.FC = () => {
             <div className="relative group cursor-pointer" onClick={handleAvatarClick}>
               {user.avatarUrl ? (
                 <img
-                  src={user.avatarUrl}
+                  src={getImageUrl(user.avatarUrl)}
                   alt={user.fullName}
                   className="h-28 w-28 rounded-full border-2 border-brand-gold object-cover shadow-[0_0_20px_rgba(212,175,55,0.2)] transition-transform duration-300 group-hover:scale-105"
                 />
@@ -360,7 +402,7 @@ export const UserProfile: React.FC = () => {
 
             <div className="flex flex-col justify-end">
               <span className="text-[9px] bg-brand-gold/10 border border-brand-gold/20 text-brand-gold font-black uppercase px-2.5 py-0.5 rounded-full tracking-widest w-max mx-auto md:mx-0 flex items-center gap-1.5 mb-1.5">
-                <Gift size={10} /> Thành viên VIP • {user.membershipPoints} điểm
+                <Gift size={10} /> {(user.tierName || 'Bronze').toUpperCase()} • {user.membershipPoints} điểm
               </span>
               <h2 className="text-2xl font-black text-white uppercase tracking-wider">{user.fullName}</h2>
               <p className="text-xs text-gray-400 font-medium mt-1">{user.email}</p>
@@ -378,12 +420,13 @@ export const UserProfile: React.FC = () => {
 
       {/* Tabs Navigation Grid */}
       <div className="max-w-6xl mx-auto px-4 md:px-8 mt-10 grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-        
+
         {/* Navigation Sidebar Panel */}
         <div className="lg:col-span-3 flex flex-col gap-2 bg-white/[0.01] border border-white/5 p-3 rounded-2xl backdrop-blur-xl">
           {[
             { id: 'profile', label: 'Thông Tin Cá Nhân', icon: <UserIcon size={14} /> },
             { id: 'bookings', label: 'Vé Của Tôi', icon: <Ticket size={14} /> },
+            { id: 'loyalty', label: 'Điểm Thành Viên', icon: <Gift size={14} /> },
             { id: 'favorites', label: 'Phim Yêu Thích', icon: <Heart size={14} /> },
             { id: 'notifications', label: 'Thông Báo', icon: <Bell size={14} /> },
             { id: 'security', label: 'Đổi Mật Khẩu', icon: <Lock size={14} /> },
@@ -391,11 +434,10 @@ export const UserProfile: React.FC = () => {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`w-full py-3 px-4 rounded-xl text-xs font-black uppercase tracking-widest flex items-center gap-3 transition-all text-left cursor-pointer ${
-                activeTab === tab.id
-                  ? 'bg-brand text-white shadow-lg shadow-brand/10 border border-brand-gold/15'
-                  : 'text-gray-400 hover:text-white hover:bg-white/5 border border-transparent'
-              }`}
+              className={`w-full py-3 px-4 rounded-xl text-xs font-black uppercase tracking-widest flex items-center gap-3 transition-all text-left cursor-pointer ${activeTab === tab.id
+                ? 'bg-brand text-white shadow-lg shadow-brand/10 border border-brand-gold/15'
+                : 'text-gray-400 hover:text-white hover:bg-white/5 border border-transparent'
+                }`}
             >
               {tab.icon}
               {tab.label}
@@ -413,7 +455,7 @@ export const UserProfile: React.FC = () => {
               exit={{ opacity: 0, x: -15 }}
               transition={{ duration: 0.2 }}
             >
-              
+
               {/* Tab 1: Profile Details */}
               {activeTab === 'profile' && (
                 <div className="flex flex-col gap-6">
@@ -491,17 +533,17 @@ export const UserProfile: React.FC = () => {
                       {[
                         { id: 'All', label: 'Tất cả' },
                         { id: 'Confirmed', label: 'Đã xác nhận' },
+                        { id: 'CheckedIn', label: 'Đã Check-in' },
                         { id: 'Pending', label: 'Chờ thanh toán' },
                         { id: 'Cancelled', label: 'Đã hủy' }
                       ].map(status => (
                         <button
                           key={status.id}
                           onClick={() => setStatusFilter(status.id as any)}
-                          className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider whitespace-nowrap transition-all border cursor-pointer ${
-                            statusFilter === status.id
-                              ? 'bg-brand text-white border-brand-gold/15'
-                              : 'bg-white/5 text-gray-400 border-white/5 hover:text-white'
-                          }`}
+                          className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider whitespace-nowrap transition-all border cursor-pointer ${statusFilter === status.id
+                            ? 'bg-brand text-white border-brand-gold/15'
+                            : 'bg-white/5 text-gray-400 border-white/5 hover:text-white'
+                            }`}
                         >
                           {status.label}
                         </button>
@@ -536,23 +578,23 @@ export const UserProfile: React.FC = () => {
                             <div className="flex items-center justify-between">
                               <span className="text-[10px] font-mono text-gray-500 uppercase tracking-widest">MÃ: {booking.bookingCode}</span>
                               <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase border tracking-wider ${getStatusStyle(booking.bookingStatus)}`}>
-                                {booking.bookingStatus === 'Confirmed' ? 'Đã xác nhận' : booking.bookingStatus === 'Cancelled' ? 'Đã hủy' : 'Chờ thanh toán'}
+                                {booking.bookingStatus === 'Confirmed' ? 'Đã xác nhận' : booking.bookingStatus === 'CheckedIn' ? 'Đã Check-in' : booking.bookingStatus === 'Cancelled' ? 'Đã hủy' : 'Chờ thanh toán'}
                               </span>
                             </div>
 
                             <div>
                               <h4 className="text-base font-black text-white uppercase leading-snug">{booking.movieTitle || booking.showtime?.movie?.title || 'Unknown Title'}</h4>
-                              <p className="text-xs text-gray-500 font-medium mt-1">Phòng {booking.hallName || booking.showtime?.hall?.name || '1'} • {booking.showtime?.hall?.hallTypeName || '2D'}</p>
+                              <p className="text-xs text-gray-500 font-medium mt-1">Phòng {booking.hallName || booking.showtime?.hall?.name || '1'} • {booking.showtime?.hall?.hallTypeName || '2D'} • {booking.movieDuration || booking.showtime?.movie?.duration || 120} phút</p>
                             </div>
 
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs font-semibold text-gray-400 border-t border-white/5 pt-4">
                               <div>
                                 <span className="text-[9px] text-gray-500 uppercase tracking-wider block mb-1">Ngày</span>
-                                <span className="text-gray-300 flex items-center gap-1.5"><Calendar size={12} /> {(booking.startTime || booking.showtime?.startTime) ? new Date(booking.startTime || booking.showtime!.startTime).toLocaleDateString('vi-VN') : 'N/A'}</span>
+                                <span className="text-gray-300 flex items-center gap-1.5"><Calendar size={12} /> {(booking.startTime || booking.showtime?.startTime) ? parseApiDate(booking.startTime || booking.showtime!.startTime).toLocaleDateString('vi-VN') : 'N/A'}</span>
                               </div>
                               <div>
                                 <span className="text-[9px] text-gray-500 uppercase tracking-wider block mb-1">Giờ</span>
-                                <span className="text-gray-300 flex items-center gap-1.5"><Clock size={12} /> {(booking.startTime || booking.showtime?.startTime) ? new Date(booking.startTime || booking.showtime!.startTime).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : 'N/A'}</span>
+                                <span className="text-gray-300 flex items-center gap-1.5"><Clock size={12} /> {(booking.startTime || booking.showtime?.startTime) ? parseApiDate(booking.startTime || booking.showtime!.startTime).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : 'N/A'}</span>
                               </div>
                               <div className="col-span-2">
                                 <span className="text-[9px] text-gray-500 uppercase tracking-wider block mb-1">Ghế</span>
@@ -565,6 +607,11 @@ export const UserProfile: React.FC = () => {
                             <div className="border-t border-white/5 pt-3.5 flex justify-between items-center text-xs font-bold text-gray-500">
                               <span>Ngày đặt: {new Date(booking.createdAt).toLocaleString('vi-VN')}</span>
                               <div className="flex items-center gap-4">
+                                {booking.bookingStatus === 'Pending' && (
+                                  <Link to={`/payment?bookingId=${booking.bookingId}`} className="text-xs font-black text-brand hover:text-white uppercase tracking-wider transition-colors mr-1">
+                                    Thanh Toán
+                                  </Link>
+                                )}
                                 <Link to={`/booking/${booking.bookingId}`} className="text-xs font-black text-brand-gold hover:text-white uppercase tracking-wider transition-colors">
                                   Xem Chi Tiết
                                 </Link>
@@ -573,17 +620,14 @@ export const UserProfile: React.FC = () => {
                             </div>
                           </div>
 
-                          {/* QR Column (only if Confirmed) */}
-                          {booking.bookingStatus === 'Confirmed' && (
+                          {/* QR Column (only if Confirmed or CheckedIn) */}
+                          {(booking.bookingStatus === 'Confirmed' || booking.bookingStatus === 'CheckedIn') && (
                             <div className="flex flex-col items-center justify-center bg-white p-3 rounded-2xl md:w-32 md:h-32 self-center shrink-0">
-                              {booking.qrCodeUrl ? (
-                                <img src={booking.qrCodeUrl} alt="QR code" className="w-24 h-24 object-contain" />
-                              ) : (
-                                <div className="flex flex-col items-center gap-1.5 text-gray-400">
-                                  <QrCode size={32} />
-                                  <span className="text-[8px] font-black uppercase text-gray-500 tracking-wider">Mã QR</span>
-                                </div>
-                              )}
+                              <img
+                                src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(window.location.origin + '/booking/' + booking.bookingId)}`}
+                                alt="QR code"
+                                className="w-24 h-24 object-contain"
+                              />
                             </div>
                           )}
                         </GlassCard>
@@ -614,6 +658,207 @@ export const UserProfile: React.FC = () => {
                 </div>
               )}
 
+              {/* Tab: Loyalty Program (Điểm Thành Viên) */}
+              {activeTab === 'loyalty' && (
+                <div className="flex flex-col gap-6 text-left">
+                  <div className="flex flex-col gap-1 border-b border-white/5 pb-4">
+                    <h3 className="text-base font-black text-white uppercase tracking-wider">Chương Trình Điểm Thành Viên</h3>
+                    <p className="text-xs text-gray-500">Tích lũy điểm khi mua vé và nâng hạng để nhận ưu đãi đặc biệt.</p>
+                  </div>
+
+                  {loadingLoyalty && !loyaltyDashboard ? (
+                    <div className="h-64 bg-white/5 border border-white/5 rounded-2xl animate-pulse flex items-center justify-center text-gray-400 text-xs">
+                      Đang tải dữ liệu điểm thành viên...
+                    </div>
+                  ) : (
+                    <div className="flex flex-col gap-6">
+
+                      {/* Dashboard Grid */}
+                      <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
+
+                        {/* Member Card Component (4 cols) */}
+                        <div className="md:col-span-5">
+                          <div className={`p-6 rounded-2xl border relative overflow-hidden h-full flex flex-col justify-between min-h-[220px] transition-all duration-300 shadow-xl ${loyaltyDashboard?.tierName === 'Platinum'
+                            ? 'bg-gradient-to-tr from-purple-900 via-indigo-950 to-violet-800 border-purple-500/30 text-white shadow-purple-500/5'
+                            : loyaltyDashboard?.tierName === 'Gold'
+                              ? 'bg-gradient-to-tr from-amber-600 via-yellow-700 to-amber-500 border-amber-400/30 text-white shadow-amber-500/5'
+                              : loyaltyDashboard?.tierName === 'Silver'
+                                ? 'bg-gradient-to-tr from-slate-600 via-zinc-700 to-slate-500 border-zinc-400/30 text-white shadow-zinc-400/5'
+                                : 'bg-gradient-to-tr from-orange-900 via-amber-950 to-orange-850 border-orange-800/30 text-white shadow-orange-950/5'
+                            }`}>
+                            {/* Decorative background glow */}
+                            <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full blur-2xl pointer-events-none" />
+
+                            <div>
+                              <div className="flex justify-between items-start">
+                                <div>
+                                  <span className="text-[10px] uppercase font-black tracking-widest text-white/70 block">Hạng Thành Viên</span>
+                                  <h4 className="text-2xl font-black uppercase tracking-wider mt-1">{loyaltyDashboard?.tierName || 'BRONZE'}</h4>
+                                </div>
+                                <span className="px-2 py-0.5 rounded-md text-[9px] font-black uppercase bg-white/10 text-white border border-white/20 tracking-wider">
+                                  Hệ số x{loyaltyDashboard?.pointMultiplier?.toFixed(1) || '1.0'}
+                                </span>
+                              </div>
+
+                              <p className="text-[10px] text-white/60 font-semibold mt-4">
+                                {loyaltyDashboard?.tierName === 'Platinum' && ' Bạn đã đạt mức hạng cao nhất với những đặc quyền thượng lưu!'}
+                                {loyaltyDashboard?.tierName === 'Gold' && ' Trải nghiệm hạng Vàng để nhận bắp nước & đổi vé miễn phí.'}
+                                {loyaltyDashboard?.tierName === 'Silver' && ' Nhận ngay quà sinh nhật & ưu đãi tích lũy từ hạng Bạc.'}
+                                {loyaltyDashboard?.tierName === 'Bronze' && ' Tích lũy thêm điểm để thăng hạng Bạc.'}
+                              </p>
+                            </div>
+
+                            <div className="border-t border-white/10 pt-4 mt-6 flex justify-between items-end">
+                              <div>
+                                <span className="text-[9px] uppercase font-black tracking-wider text-white/60">Điểm khả dụng</span>
+                                <div className="text-3xl font-black tracking-tight">{loyaltyDashboard?.loyaltyPoints ?? 0} <span className="text-xs font-bold text-white/75">điểm</span></div>
+                              </div>
+                              <div className="text-right">
+                                <span className="text-[9px] uppercase font-black tracking-wider text-white/60">Tích lũy trọn đời</span>
+                                <div className="text-sm font-black">{loyaltyDashboard?.lifetimePoints ?? 0} pts</div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Progress and Tier benefits list (7 cols) */}
+                        <div className="md:col-span-7 flex flex-col gap-5 bg-white/[0.02] border border-white/5 p-6 rounded-2xl">
+                          <div>
+                            <h4 className="text-xs font-black text-white uppercase tracking-wider">Tiến trình nâng hạng tiếp theo</h4>
+
+                            {loyaltyDashboard && loyaltyDashboard.nextTierName ? (
+                              <div className="mt-3">
+                                <div className="flex justify-between items-center text-[10px] font-extrabold uppercase text-gray-400 mb-1.5">
+                                  <span>{loyaltyDashboard.tierName}</span>
+                                  <span className="text-brand-gold">Cần {loyaltyDashboard.pointsNeededForNextTier} điểm đến {loyaltyDashboard.nextTierName}</span>
+                                  <span>{loyaltyDashboard.nextTierName}</span>
+                                </div>
+                                <div className="w-full bg-white/5 h-2.5 rounded-full overflow-hidden border border-white/5 p-0.5">
+                                  <div
+                                    className="bg-gradient-to-r from-brand to-brand-gold h-full rounded-full transition-all duration-500"
+                                    style={{ width: `${loyaltyDashboard.progressionPercent ?? 100}%` }}
+                                  />
+                                </div>
+                                <p className="text-[10px] text-gray-500 font-semibold mt-2">
+                                  Đã tích lũy {loyaltyDashboard.lifetimePoints} / {(loyaltyDashboard.lifetimePoints + (loyaltyDashboard.pointsNeededForNextTier ?? 0))} điểm trọn đời.
+                                </p>
+                              </div>
+                            ) : (
+                              <div className="mt-3 p-3 bg-brand/5 border border-brand-gold/10 rounded-xl text-center">
+                                <p className="text-xs font-bold text-brand-gold">👑 Bạn đã đạt cấp độ Platinum cao nhất!</p>
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="border-t border-white/5 pt-4">
+                            <h4 className="text-xs font-black text-white uppercase tracking-wider mb-3">Đặc quyền cấp độ thành viên</h4>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs text-gray-400 font-semibold">
+                              <div className="p-3 bg-white/[0.02] border border-white/5 rounded-xl flex flex-col gap-1.5">
+                                <span className="text-[9px] font-black uppercase text-brand-gold">Bronze (Từ 0đ)</span>
+                                <ul className="list-disc list-inside text-gray-400 space-y-0.5 text-[11px]">
+                                  <li>Hệ số tích lũy x1.0</li>
+                                  <li>Đăng ký tài khoản miễn phí</li>
+                                </ul>
+                              </div>
+                              <div className="p-3 bg-white/[0.02] border border-white/5 rounded-xl flex flex-col gap-1.5">
+                                <span className="text-[9px] font-black uppercase text-brand-gold">Silver (Từ 100đ)</span>
+                                <ul className="list-disc list-inside text-gray-400 space-y-0.5 text-[11px]">
+                                  <li>Hệ số tích lũy x1.2</li>
+                                  <li>Quà sinh nhật thành viên</li>
+                                </ul>
+                              </div>
+                              <div className="p-3 bg-white/[0.02] border border-white/5 rounded-xl flex flex-col gap-1.5">
+                                <span className="text-[9px] font-black uppercase text-brand-gold">Gold (Từ 300đ)</span>
+                                <ul className="list-disc list-inside text-gray-400 space-y-0.5 text-[11px]">
+                                  <li>Hệ số tích lũy x1.5</li>
+                                  <li>Đổi vé phim & bắp nước</li>
+                                </ul>
+                              </div>
+                              <div className="p-3 bg-white/[0.02] border border-white/5 rounded-xl flex flex-col gap-1.5">
+                                <span className="text-[9px] font-black uppercase text-brand-gold">Platinum (Từ 600đ)</span>
+                                <ul className="list-disc list-inside text-gray-400 space-y-0.5 text-[11px]">
+                                  <li>Hệ số tích lũy x2.0</li>
+                                  <li>Lối đi ưu tiên tại rạp</li>
+                                  <li>Vé VIP sneak-show sớm</li>
+                                </ul>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                      </div>
+
+                      {/* Transaction History Section */}
+                      <div className="flex flex-col gap-4 mt-4">
+                        <div className="flex items-center justify-between border-b border-white/5 pb-2">
+                          <h4 className="text-xs font-black text-white uppercase tracking-wider">Lịch sử giao dịch điểm</h4>
+                        </div>
+
+                        {loyaltyTransactions.length === 0 ? (
+                          <div className="py-12 bg-white/[0.01] border border-white/5 rounded-2xl text-center text-gray-500 flex flex-col items-center justify-center gap-2">
+                            <Gift size={32} className="text-gray-700 animate-pulse" />
+                            <span className="text-xs font-black uppercase tracking-widest text-gray-600">Không tìm thấy giao dịch điểm nào</span>
+                          </div>
+                        ) : (
+                          <div className="flex flex-col gap-3">
+                            {loyaltyTransactions.map(tx => (
+                              <div key={tx.loyaltyTransactionId} className="bg-white/[0.02] border border-white/5 rounded-xl p-4 flex justify-between items-center gap-4">
+                                <div className="min-w-0">
+                                  <p className="text-xs font-black text-white uppercase tracking-wider">{tx.description}</p>
+                                  <div className="flex items-center gap-3 mt-1 text-[10px] text-gray-500 font-extrabold uppercase">
+                                    <span>{new Date(tx.createdAt).toLocaleString('vi-VN')}</span>
+                                    <span>•</span>
+                                    <span>Loại: {tx.transactionType === 'Earn' ? 'Tích lũy' : tx.transactionType === 'Redeem' ? 'Quy đổi' : tx.transactionType === 'Refund' ? 'Hoàn trả' : tx.transactionType}</span>
+                                  </div>
+                                </div>
+                                <div className="text-right shrink-0">
+                                  <div className={`text-sm font-black ${tx.pointsChanged > 0
+                                    ? 'text-green-400'
+                                    : 'text-brand'
+                                    }`}>
+                                    {tx.pointsChanged > 0 ? '+' : ''}{tx.pointsChanged} điểm
+                                  </div>
+                                  <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded border mt-1.5 inline-block ${tx.status === 'Completed'
+                                    ? 'bg-green-500/10 text-green-400 border-green-500/20'
+                                    : tx.status === 'Pending'
+                                      ? 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20'
+                                      : 'bg-white/5 text-gray-400 border-white/10'
+                                    }`}>
+                                    {tx.status === 'Completed' ? 'Thành công' : tx.status === 'Pending' ? 'Đang chờ' : tx.status}
+                                  </span>
+                                </div>
+                              </div>
+                            ))}
+
+                            {/* Pagination Controls */}
+                            {loyaltyTotalPages > 1 && (
+                              <div className="flex items-center justify-center gap-4 mt-2">
+                                <button
+                                  onClick={() => setLoyaltyPage(p => Math.max(p - 1, 1))}
+                                  disabled={loyaltyPage === 1}
+                                  className="h-8 w-8 bg-white/5 hover:bg-white/10 disabled:opacity-30 text-white rounded-lg flex items-center justify-center transition-colors cursor-pointer border border-white/10"
+                                >
+                                  <ChevronLeft size={14} />
+                                </button>
+                                <span className="text-[10px] font-black text-white uppercase tracking-wider">Trang {loyaltyPage} / {loyaltyTotalPages}</span>
+                                <button
+                                  onClick={() => setLoyaltyPage(p => Math.min(p + 1, loyaltyTotalPages))}
+                                  disabled={loyaltyPage === loyaltyTotalPages}
+                                  className="h-8 w-8 bg-white/5 hover:bg-white/10 disabled:opacity-30 text-white rounded-lg flex items-center justify-center transition-colors cursor-pointer border border-white/10"
+                                >
+                                  <ChevronRight size={14} />
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Tab 3: Favorite Movies */}
               {activeTab === 'favorites' && (
                 <div className="flex flex-col gap-6">
@@ -635,11 +880,11 @@ export const UserProfile: React.FC = () => {
                           {/* Image Box */}
                           <div className="aspect-[2/3] w-full overflow-hidden relative">
                             <img
-                              src={movie.posterUrl || 'https://images.unsplash.com/photo-1594909122845-11baa439b7bf?q=80&w=300'}
+                              src={getImageUrl(movie.posterUrl) || 'https://images.unsplash.com/photo-1594909122845-11baa439b7bf?q=80&w=300'}
                               alt={movie.title}
                               className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
                             />
-                            
+
                             {/* Hover info screen */}
                             <div className="absolute inset-0 bg-black/75 flex flex-col justify-end p-4 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
                               <button
@@ -684,19 +929,18 @@ export const UserProfile: React.FC = () => {
                         <div key={n} className="h-16 bg-white/5 border border-white/5 rounded-2xl animate-pulse" />
                       ))}
                     </div>
-                  ) : notifications.length === 0 ? (
+                  ) : (!Array.isArray(notifications) || notifications.length === 0) ? (
                     <div className="py-16 bg-white/[0.01] border border-white/5 rounded-3xl text-center text-gray-500 flex flex-col items-center justify-center gap-3">
                       <Bell size={40} className="text-gray-700" />
                       <span className="text-xs font-black uppercase tracking-widest text-gray-600">Hộp thư của bạn trống</span>
                     </div>
                   ) : (
                     <div className="flex flex-col gap-3">
-                      {notifications.map(notif => (
+                      {(notifications || []).map(notif => (
                         <GlassCard
                           key={notif.notificationId}
-                          className={`p-4 border-white/5 flex items-center justify-between gap-4 transition-all duration-300 ${
-                            notif.isRead ? 'opacity-60' : 'border-l-4 border-l-brand bg-white/[0.03]'
-                          }`}
+                          className={`p-4 border-white/5 flex items-center justify-between gap-4 transition-all duration-300 ${notif.isRead ? 'opacity-60' : 'border-l-4 border-l-brand bg-white/[0.03]'
+                            }`}
                         >
                           <div className="min-w-0 flex-grow">
                             <h4 className="text-xs font-black text-white uppercase tracking-wider">{notif.title}</h4>

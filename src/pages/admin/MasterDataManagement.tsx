@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useCallback } from 'react';
-import { Database, Plus, Search, Download, Tag, Layout, Armchair, Tv, Languages, Captions, ShieldCheck, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Database, Plus, Search, Download, Tag, Layout, Armchair, Tv, Languages, Captions, ShieldCheck, ChevronLeft, ChevronRight, MapPin } from 'lucide-react';
 import { useMasterData } from './master-data/useMasterData';
-import { DataTable, StatsCards, DataFormModal, DeleteConfirmModal } from './master-data/components';
+import { DataTable, StatsCards, DataFormModal, HardDeleteConfirmModal } from './master-data/components';
 import type { DataTab, TabConfig, MasterDataItem } from './master-data/types';
 import { Button } from '../../components/ui/Button';
 
@@ -23,12 +23,13 @@ export const MasterDataManagement: React.FC = () => {
     stats,
     createItem,
     updateItem,
-    toggleItemDeleteStatus
+    toggleItemDeleteStatus,
+    hardDeleteItem
   } = useMasterData(activeTab);
 
   // Shared modal actions
   const [isFormOpen, setIsFormOpen] = useState(false);
-  const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+  const [isHardDeleteOpen, setIsHardDeleteOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<MasterDataItem | null>(null);
   const [targetItem, setTargetItem] = useState<MasterDataItem | null>(null);
   const [saving, setSaving] = useState(false);
@@ -41,13 +42,14 @@ export const MasterDataManagement: React.FC = () => {
     { id: 'languages', label: 'Ngôn Ngữ', icon: Languages, color: 'text-emerald-400', defaultDescription: 'Ngôn ngữ âm thanh tiếng nói chính thức' },
     { id: 'subtitles', label: 'Loại Phụ Đề', icon: Captions, color: 'text-cyan-400', defaultDescription: 'Loại phụ đề/lồng tiếng bổ sung của phim' },
     { id: 'ratings', label: 'Phân Loại Độ Tuổi', icon: ShieldCheck, color: 'text-orange-400', defaultDescription: 'Độ tuổi giới hạn được phép xem phim' },
+    { id: 'cities', label: 'Tỉnh / Thành Phố', icon: MapPin, color: 'text-amber-500', defaultDescription: 'Khu vực hoặc tỉnh/thành phố hoạt động rạp chiếu' },
   ], []);
 
   const activeTabConfig = useMemo(() => {
     return tabs.find(t => t.id === activeTab) || tabs[0];
   }, [activeTab, tabs]);
 
-  const showPriceMultiplier = activeTab === 'seattypes';
+  const showPriceMultiplier = false;
 
   // Open creation modal
   const handleOpenAdd = useCallback(() => {
@@ -61,11 +63,28 @@ export const MasterDataManagement: React.FC = () => {
     setIsFormOpen(true);
   }, []);
 
-  // Open delete status modal
-  const handleOpenToggleDelete = useCallback((item: MasterDataItem) => {
+  // Execute Direct Status Toggle
+  const handleToggleDelete = useCallback(async (item: MasterDataItem) => {
+    await toggleItemDeleteStatus(item.id);
+  }, [toggleItemDeleteStatus]);
+
+  // Open hard delete modal
+  const handleOpenHardDelete = useCallback((item: MasterDataItem) => {
     setTargetItem(item);
-    setIsDeleteOpen(true);
+    setIsHardDeleteOpen(true);
   }, []);
+
+  // Execute Hard Delete Action
+  const handleConfirmHardDelete = useCallback(async () => {
+    if (!targetItem) return;
+    setSaving(true);
+    const success = await hardDeleteItem(targetItem.id);
+    setSaving(false);
+    if (success) {
+      setIsHardDeleteOpen(false);
+      setTargetItem(null);
+    }
+  }, [targetItem, hardDeleteItem]);
 
   // Execute Save Action
   const handleSave = useCallback(async (payload: { name: string; description: string; priceMultiplier?: number }) => {
@@ -82,16 +101,6 @@ export const MasterDataManagement: React.FC = () => {
     }
   }, [editingItem, createItem, updateItem]);
 
-  // Execute Delete Action
-  const handleConfirmToggleDelete = useCallback(async () => {
-    if (!targetItem) return;
-    const success = await toggleItemDeleteStatus(targetItem.id);
-    if (success) {
-      setIsDeleteOpen(false);
-      setTargetItem(null);
-    }
-  }, [targetItem, toggleItemDeleteStatus]);
-
   // Pagination bounds text helper
   const pageBoundsText = useMemo(() => {
     if (totalRecords === 0) return '0 - 0 của 0 bản ghi';
@@ -106,15 +115,24 @@ export const MasterDataManagement: React.FC = () => {
 
   // Export CSV Action
   const handleExportCSV = useCallback(() => {
-    const headers = ['ID', 'Tên Gọi', 'Mô Tả Chi Tiết', 'Hệ Số Phụ Thu', 'Ngày Tạo', 'Trạng Thái'];
-    const rows = allItems.map(item => [
-      item.id,
-      item.name,
-      item.description,
-      item.priceMultiplier ? `x${item.priceMultiplier}` : '-',
-      new Date(item.createdAt).toLocaleString('vi-VN'),
-      item.isDeleted ? 'Ngừng sử dụng' : 'Đang sử dụng'
-    ]);
+    const headers = showPriceMultiplier
+      ? ['ID', 'Tên Gọi', 'Mô Tả Chi Tiết', 'Hệ Số Phụ Thu', 'Ngày Tạo', 'Trạng Thái']
+      : ['ID', 'Tên Gọi', 'Mô Tả Chi Tiết', 'Ngày Tạo', 'Trạng Thái'];
+    const rows = allItems.map(item => {
+      const row = [
+        item.id,
+        item.name,
+        item.description
+      ];
+      if (showPriceMultiplier) {
+        row.push(item.priceMultiplier ? `x${item.priceMultiplier}` : '-');
+      }
+      row.push(
+        new Date(item.createdAt).toLocaleString('vi-VN'),
+        item.isDeleted ? 'Ngừng sử dụng' : 'Đang sử dụng'
+      );
+      return row;
+    });
     const csvContent = "\uFEFF" + [headers.join(','), ...rows.map(e => e.map(val => `"${val}"`).join(','))].join('\n');
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -124,20 +142,22 @@ export const MasterDataManagement: React.FC = () => {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-  }, [allItems, activeTabConfig]);
+  }, [allItems, activeTabConfig, showPriceMultiplier]);
 
   // Export Excel Action
   const handleExportExcel = useCallback(() => {
     let html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">`;
     html += `<head><meta charset="utf-8" /><style>table { border-collapse: collapse; } th, td { border: 1px solid #ccc; padding: 6px 12px; font-family: sans-serif; }</style></head>`;
     html += `<body><h2>Bảng Danh Mục: ${activeTabConfig.label}</h2><table>`;
-    html += `<tr style="background:#f2f2f2;"><th>ID</th><th>Tên Gọi</th><th>Mô Tả Chi Tiết</th><th>Hệ Số Phụ Thu</th><th>Ngày Tạo</th><th>Trạng Thái</th></tr>`;
+    html += `<tr style="background:#f2f2f2;"><th>ID</th><th>Tên Gọi</th><th>Mô Tả Chi Tiết</th>${showPriceMultiplier ? '<th>Hệ Số Phụ Thu</th>' : ''}<th>Ngày Tạo</th><th>Trạng Thái</th></tr>`;
     allItems.forEach(item => {
       html += `<tr>`;
       html += `<td>${item.id}</td>`;
       html += `<td>${item.name}</td>`;
       html += `<td>${item.description}</td>`;
-      html += `<td>${item.priceMultiplier ? `x${item.priceMultiplier}` : '-'}</td>`;
+      if (showPriceMultiplier) {
+        html += `<td>${item.priceMultiplier ? `x${item.priceMultiplier}` : '-'}</td>`;
+      }
       html += `<td>${new Date(item.createdAt).toLocaleString('vi-VN')}</td>`;
       html += `<td>${item.isDeleted ? 'Ngừng sử dụng' : 'Đang sử dụng'}</td>`;
       html += `</tr>`;
@@ -152,7 +172,7 @@ export const MasterDataManagement: React.FC = () => {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-  }, [allItems, activeTabConfig]);
+  }, [allItems, activeTabConfig, showPriceMultiplier]);
 
   return (
     <div className="flex flex-col gap-6 animate-fadeIn">
@@ -245,7 +265,8 @@ export const MasterDataManagement: React.FC = () => {
         loading={loading}
         showPriceMultiplier={showPriceMultiplier}
         onEdit={handleOpenEdit}
-        onToggleDelete={handleOpenToggleDelete}
+        onToggleDelete={handleToggleDelete}
+        onHardDelete={handleOpenHardDelete}
       />
 
       {/* Pagination Footer */}
@@ -300,12 +321,16 @@ export const MasterDataManagement: React.FC = () => {
         onSave={handleSave}
       />
 
-      {/* CONFIRM TOGGLE DELETE/INACTIVE DIALOG */}
-      <DeleteConfirmModal
-        isOpen={isDeleteOpen}
+      {/* CONFIRM HARD DELETE DIALOG */}
+      <HardDeleteConfirmModal
+        isOpen={isHardDeleteOpen}
         item={targetItem}
-        onClose={() => setIsDeleteOpen(false)}
-        onConfirm={handleConfirmToggleDelete}
+        loading={saving}
+        onClose={() => {
+          setIsHardDeleteOpen(false);
+          setTargetItem(null);
+        }}
+        onConfirm={handleConfirmHardDelete}
       />
     </div>
   );

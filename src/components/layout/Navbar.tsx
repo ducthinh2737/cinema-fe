@@ -3,6 +3,7 @@ import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Bell, Search, Menu, X, Ticket, Film, Gift, MapPin } from 'lucide-react';
 import { UserDropdown } from './UserDropdown';
+import { getImageUrl } from '../../api/client';
 import { NotificationDropdown } from './NotificationDropdown';
 import { MobileMenu } from './MobileMenu';
 import type { User, Notification } from '../../types';
@@ -223,7 +224,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   >
                     {user?.avatarUrl ? (
                       <img
-                        src={user.avatarUrl}
+                        src={getImageUrl(user.avatarUrl)}
                         alt={user.fullName}
                         className="h-8 w-8 rounded-full border border-white/10 group-hover:border-brand-gold/50 transition-colors object-cover"
                       />

@@ -5,6 +5,8 @@ import { RevenueChart } from './MovieComponents';
 import type { RevenueData } from './MovieComponents';
 import type { Movie } from '../../../types';
 
+import { getImageUrl } from '../../../api/client';
+
 interface MovieDrawerProps {
   isOpen: boolean;
   onClose: () => void;
@@ -70,7 +72,7 @@ export const MovieDrawer: React.FC<MovieDrawerProps> = ({
             {/* Header image Backdrop */}
             <div className="relative aspect-[16/9] w-full shrink-0 bg-[#0c0c12]">
               <img
-                src={movie.bannerUrl || movie.posterUrl || 'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?q=80&w=800'}
+                src={getImageUrl(movie.bannerUrl || movie.posterUrl) || 'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?q=80&w=800'}
                 alt={movie.title}
                 className="w-full h-full object-cover filter brightness-50"
               />
@@ -87,9 +89,19 @@ export const MovieDrawer: React.FC<MovieDrawerProps> = ({
 
               {/* Title tag overlay */}
               <div className="absolute bottom-4 left-6 right-6">
-                <span className="px-2 py-0.5 bg-brand-gold/20 border border-brand-gold/30 text-brand-gold text-[8px] font-black uppercase tracking-wider rounded-md">
-                  {movie.genreName || movie.genre?.genreName || 'Chưa Phân Loại'}
-                </span>
+                <div className="flex flex-wrap gap-1.5">
+                  <span className="px-2 py-0.5 bg-brand-gold/20 border border-brand-gold/30 text-brand-gold text-[8px] font-black uppercase tracking-wider rounded-md">
+                    {movie.genreName || movie.genre?.genreName || 'Chưa Phân Loại'}
+                  </span>
+                  {movie.movieFormats && movie.movieFormats.map((fmt) => (
+                    <span
+                      key={fmt.movieFormatId}
+                      className="px-2 py-0.5 bg-white/10 border border-white/20 text-white text-[8px] font-black uppercase tracking-wider rounded-md"
+                    >
+                      {fmt.formatName}
+                    </span>
+                  ))}
+                </div>
                 <h3 className="text-lg md:text-xl font-black text-white mt-1.5 uppercase tracking-tight leading-snug drop-shadow-md">
                   {movie.title}
                 </h3>

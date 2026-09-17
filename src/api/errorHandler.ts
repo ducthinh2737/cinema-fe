@@ -4,6 +4,10 @@ export interface AppError {
   message: string;
   statusCode?: number;
   details?: any;
+  response?: {
+    data?: any;
+    status?: number;
+  };
 }
 
 export const parseError = (error: any): AppError => {
@@ -12,7 +16,9 @@ export const parseError = (error: any): AppError => {
     const data = error.response?.data;
     
     let message = 'An unexpected server error occurred';
-    if (data?.Message) {
+    if (data?.message) {
+      message = data.message;
+    } else if (data?.Message) {
       message = data.Message;
     } else if (data?.title) {
       message = data.title;
@@ -24,10 +30,20 @@ export const parseError = (error: any): AppError => {
       message,
       statusCode: status,
       details: data,
+      response: {
+        data,
+        status,
+      },
     };
   }
 
   return {
     message: error?.message || 'An unexpected error occurred',
+    response: {
+      data: {
+        message: error?.message,
+        Message: error?.message,
+      },
+    },
   };
 };

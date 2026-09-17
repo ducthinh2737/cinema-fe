@@ -1,6 +1,5 @@
 import React from 'react';
-import { motion } from 'framer-motion';
-import { MapPin, ChevronRight, Search } from 'lucide-react';
+import { Search } from 'lucide-react';
 import type { Cinema } from '../../types';
 
 interface CinemaSidebarProps {
@@ -35,76 +34,47 @@ export const CinemaSidebar: React.FC<CinemaSidebarProps> = ({
           placeholder="Tìm rạp theo tên hoặc khu vực..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          className="w-full bg-white/5 border border-white/5 focus:border-brand-gold/30 rounded-xl py-2.5 pl-10 pr-4 text-xs font-bold text-gray-200 placeholder-gray-500 focus:outline-none transition-all duration-300 backdrop-blur-md"
+          className="w-full bg-white/[0.02] border border-white/5 focus:border-brand/50 rounded-2xl py-3 pl-10 pr-4 text-xs font-semibold text-white placeholder-gray-500 focus:outline-none transition-all duration-300"
         />
       </div>
 
       {/* Renders list of cinemas */}
       {loading ? (
-        <div className="flex flex-col gap-2.5">
+        <div className="flex flex-col gap-3">
           {[...Array(5)].map((_, i) => (
-            <div key={i} className="h-16 w-full bg-white/5 border border-white/5 rounded-2xl animate-pulse" />
+            <div key={i} className="h-20 w-full bg-white/5 rounded-2xl animate-pulse" />
           ))}
         </div>
       ) : filteredCinemas.length === 0 ? (
-        <div className="text-center py-8 text-xs text-gray-500 glass-panel rounded-2xl">
+        <div className="text-center py-10 text-xs text-gray-500 bg-white/[0.01] rounded-2xl border border-white/5">
           Không tìm thấy rạp nào phù hợp.
         </div>
       ) : (
-        <div className="flex md:flex-col gap-2.5 overflow-x-auto md:overflow-x-visible pb-3 md:pb-0 scrollbar-none snap-x snap-mandatory">
+        <div className="flex md:flex-col gap-3 overflow-x-auto md:overflow-x-visible pb-3 md:pb-0 scrollbar-none snap-x snap-mandatory">
           {filteredCinemas.map((cinema) => {
             const isActive = cinema.cinemaId === activeCinemaId;
             return (
-              <motion.div
+              <div
                 key={cinema.cinemaId}
-                whileHover={{ scale: 1.01 }}
-                whileTap={{ scale: 0.99 }}
                 onClick={() => onSelectCinema(cinema.cinemaId)}
-                className={`relative shrink-0 w-[240px] md:w-full snap-start p-4 rounded-2xl border text-left cursor-pointer transition-all duration-300 flex items-center justify-between gap-3 group select-none ${
+                className={`relative shrink-0 w-[240px] md:w-full snap-start p-4 rounded-2xl text-left cursor-pointer transition-all duration-300 flex flex-col gap-1.5 select-none border ${
                   isActive
-                    ? 'bg-brand/10 border-brand/40 shadow-[0_0_15px_rgba(229,9,20,0.15)]'
-                    : 'bg-white/[0.02] border-white/5 hover:border-white/10 hover:bg-white/[0.04]'
+                    ? 'bg-brand/10 border-brand/50 text-white shadow-lg shadow-brand/10'
+                    : 'bg-white/[0.01] border-white/5 hover:border-white/10 hover:bg-white/[0.03]'
                 }`}
               >
-                {/* Active Highlight Marker (Layout Animation) */}
-                {isActive && (
-                  <motion.div
-                    layoutId="activeCinemaGlow"
-                    className="absolute inset-0 rounded-2xl border border-brand/50 pointer-events-none"
-                    transition={{ type: 'spring', stiffness: 380, damping: 30 }}
-                  />
-                )}
-
-                <div className="flex flex-col gap-1 min-w-0">
-                  {/* City Tag */}
-                  <span className={`text-[8px] font-black uppercase tracking-wider px-2 py-0.5 rounded w-max leading-none ${
-                    isActive 
-                      ? 'bg-brand/20 text-brand' 
-                      : 'bg-white/5 text-brand-gold'
-                  }`}>
-                    {cinema.city}
-                  </span>
-                  
-                  {/* Cinema Name */}
-                  <h4 className="text-xs font-black text-white truncate group-hover:text-brand transition-colors leading-tight">
-                    {cinema.name}
-                  </h4>
-
-                  {/* Cinema Address */}
-                  <span className="text-[10px] text-gray-500 truncate leading-none flex items-center gap-1">
-                    <MapPin size={10} className="shrink-0" />
-                    {cinema.address}
-                  </span>
-                </div>
-
-                <div className={`p-1.5 rounded-lg border shrink-0 transition-all duration-300 ${
-                  isActive 
-                    ? 'bg-brand/15 border-brand/35 text-brand' 
-                    : 'bg-white/5 border-white/5 text-gray-500 group-hover:text-gray-300 group-hover:border-white/10'
+                {/* Cinema Name */}
+                <h4 className={`text-xs uppercase tracking-wider font-black transition-colors ${
+                  isActive ? 'text-white' : 'text-gray-300 hover:text-white'
                 }`}>
-                  <ChevronRight size={12} className="md:block hidden" />
-                </div>
-              </motion.div>
+                  {cinema.name}
+                </h4>
+
+                {/* City */}
+                <span className="text-[11px] font-semibold text-gray-500 leading-none">
+                  {cinema.city}
+                </span>
+              </div>
             );
           })}
         </div>

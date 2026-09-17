@@ -21,14 +21,14 @@ export const useSignalR = (hubPath: string, enabled = true) => {
         accessTokenFactory: () => {
           const t = localStorage.getItem('token');
           return (t && t !== 'undefined') ? t : '';
-        },
-        skipNegotiation: true,
-        transport: signalR.HttpTransportType.WebSockets
+        }
       })
       .withAutomaticReconnect()
       .configureLogging({
         log(logLevel, message) {
-          if (message.includes("Failed to start the HttpConnection before stop() was called")) {
+          if (message.includes("Failed to start the HttpConnection before stop() was called") ||
+              message.includes("The connection was stopped during negotiation") ||
+              message.includes("stopped during negotiation")) {
             return;
           }
           if (logLevel >= signalR.LogLevel.Warning) {

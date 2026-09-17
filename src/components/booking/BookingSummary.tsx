@@ -1,6 +1,9 @@
 import React from 'react';
 import { Calendar, Clock, MapPin, Ticket, ShieldAlert } from 'lucide-react';
-import type { Showtime, Seat } from '../../types';
+import { getImageUrl } from '../../api/client';
+import { parseApiDate } from '../../utils/dateHelpers';
+import { calculateTotalTicketPrice } from '../../utils/seatHelpers';
+import type { Showtime, Seat } from '../../types/seat';
 
 interface BookingSummaryProps {
   showtime: Showtime;
@@ -9,7 +12,9 @@ interface BookingSummaryProps {
   serviceFee: number;
   promoCode?: string;
   discountAmount: number;
+  pointsDiscountAmount?: number;
   totalAmount: number;
+  combos?: { comboId: number; comboName: string; quantity: number; price: number }[];
 }
 
 export const BookingSummary: React.FC<BookingSummaryProps> = ({
@@ -19,12 +24,14 @@ export const BookingSummary: React.FC<BookingSummaryProps> = ({
   serviceFee,
   promoCode,
   discountAmount,
+  pointsDiscountAmount,
   totalAmount,
+  combos,
 }) => {
   const movie = showtime.movie;
   
   const formatDate = (dateStr: string) => {
-    return new Date(dateStr).toLocaleDateString('vi-VN', {
+    return parseApiDate(dateStr).toLocaleDateString('vi-VN', {
       weekday: 'long',
       year: 'numeric',
       month: 'long',
@@ -33,7 +40,7 @@ export const BookingSummary: React.FC<BookingSummaryProps> = ({
   };
 
   const formatTime = (dateStr: string) => {
-    return new Date(dateStr).toLocaleTimeString('vi-VN', {
+    return parseApiDate(dateStr).toLocaleTimeString('vi-VN', {
       hour: '2-digit',
       minute: '2-digit',
       hour12: false
@@ -45,15 +52,8 @@ export const BookingSummary: React.FC<BookingSummaryProps> = ({
     currency: 'VND'
   });
 
-  const getTicketPrice = (seat: Seat) => {
-    const basePrice = showtime.priceValue || 75000;
-    let multiplier = 1.0;
-    if (seat.seatTypeName === 'VIP') multiplier = 1.2;
-    if (seat.seatTypeName === 'Sweetbox') multiplier = 1.5;
-    return Math.round(basePrice * multiplier);
-  };
-
-  const totalTicketPrice = seats.reduce((sum, s) => sum + getTicketPrice(s), 0);
+  const totalTicketPrice = calculateTotalTicketPrice(seats, showtime);
+  const combosTotal = combos?.reduce((sum, item) => sum + item.price * item.quantity, 0) || 0;
 
   return (
     <div className="bg-white/[0.02] border border-white/5 rounded-3xl p-6 backdrop-blur-xl shadow-glass flex flex-col gap-6 text-left">
@@ -62,7 +62,7 @@ export const BookingSummary: React.FC<BookingSummaryProps> = ({
       <div className="flex gap-4 border-b border-white/5 pb-5">
         <div className="h-24 w-16 rounded-xl overflow-hidden flex-shrink-0 border border-white/10">
           <img
-            src={movie?.posterUrl || 'https://images.unsplash.com/photo-1594909122845-11baa439b7bf?q=80&w=200'}
+            src={getImageUrl(movie?.posterUrl) || 'https://images.unsplash.com/photo-1594909122845-11baa439b7bf?q=80&w=200'}
             alt={movie?.title}
             className="h-full w-full object-cover"
           />
@@ -119,6 +119,24 @@ export const BookingSummary: React.FC<BookingSummaryProps> = ({
         </div>
       </div>
 
+      {/* Combos Summary */}
+      {combos && combos.length > 0 && (
+        <div className="flex items-start gap-3 text-xs border-b border-white/5 pb-5">
+          <div className="h-3.5 w-3.5 bg-brand-gold rounded-full flex items-center justify-center text-[8px] font-black text-black mt-0.5 flex-shrink-0">C</div>
+          <div className="flex flex-col w-full">
+            <span className="text-[9px] text-gray-500 font-black uppercase tracking-wider">Bắp nước đã chọn</span>
+            <div className="flex flex-col gap-2 mt-2">
+              {combos.map((combo) => (
+                <div key={combo.comboId} className="flex justify-between items-center bg-white/5 border border-white/10 px-3 py-2 rounded-xl text-gray-300">
+                  <span className="text-[10px] font-black uppercase">{combo.comboName} x {combo.quantity}</span>
+                  <span className="text-[10px] font-bold text-white">{currencyFormatter.format(combo.price * combo.quantity)}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Pricing Deductions Summary */}
       <div className="flex flex-col gap-3 pt-1 text-xs">
         <div className="flex justify-between">
@@ -131,12 +149,26 @@ export const BookingSummary: React.FC<BookingSummaryProps> = ({
           <span className="text-white font-bold">{currencyFormatter.format(serviceFee)}</span>
         </div>
 
+        {combosTotal > 0 && (
+          <div className="flex justify-between">
+            <span className="text-gray-400 font-medium">Bắp nước</span>
+            <span className="text-white font-bold">{currencyFormatter.format(combosTotal)}</span>
+          </div>
+        )}
+
         {promoCode && (
           <div className="flex justify-between text-emerald-400 font-bold">
             <span className="flex items-center gap-1">Đã áp dụng mã giảm giá ({promoCode})</span>
             <span>-{currencyFormatter.format(discountAmount)}</span>
           </div>
         )}
+
+        {pointsDiscountAmount && pointsDiscountAmount > 0 ? (
+          <div className="flex justify-between text-green-400 font-bold">
+            <span className="flex items-center gap-1">Điểm thành viên quy đổi</span>
+            <span>-{currencyFormatter.format(pointsDiscountAmount)}</span>
+          </div>
+        ) : null}
 
         <div className="border-t border-white/5 mt-2 pt-4 flex justify-between items-baseline">
           <span className="text-sm font-black text-white uppercase tracking-wider">Tổng cộng</span>

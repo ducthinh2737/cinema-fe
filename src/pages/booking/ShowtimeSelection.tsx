@@ -44,7 +44,11 @@ export const ShowtimeModal: React.FC<ShowtimeModalProps> = ({
   const months = ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'];
 
   const availableDates = Array.from(
-    new Set(showtimes.map(s => parseApiDate(s.startTime).toDateString()))
+    new Set(
+      showtimes
+        .filter(s => parseApiDate(s.startTime).getTime() > Date.now())
+        .map(s => parseApiDate(s.startTime).toDateString())
+    )
   ).sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
 
   useEffect(() => {
@@ -53,9 +57,11 @@ export const ShowtimeModal: React.FC<ShowtimeModalProps> = ({
     }
   }, [availableDates.length]);
 
-  const filteredShowtimes = showtimes.filter(s =>
-    selectedDate ? parseApiDate(s.startTime).toDateString() === selectedDate : true
-  );
+  const filteredShowtimes = showtimes.filter(s => {
+    const matchesDate = selectedDate ? parseApiDate(s.startTime).toDateString() === selectedDate : true;
+    const isFuture = parseApiDate(s.startTime).getTime() > Date.now();
+    return matchesDate && isFuture;
+  });
 
   const groupedByCinema = cinemas.map(cinema => {
     const cinemaShowtimes = filteredShowtimes.filter(s => s.hall?.cinemaId === cinema.cinemaId);
@@ -181,20 +187,33 @@ export const ShowtimeModal: React.FC<ShowtimeModalProps> = ({
                               const late = isLateShow(st.startTime);
                               const dateLabel = `${d.getDate()}/${String(d.getMonth() + 1).padStart(2, '0')}`;
 
+                              const isSneak = movie?.releaseDate ? parseApiDate(st.startTime) < parseApiDate(movie.releaseDate) : false;
+
                               return (
                                 <button
                                   key={st.showtimeId}
                                   onClick={() => onSelectShowtime(st)}
-                                  className={`flex flex-col items-center min-w-[72px] px-3 py-2.5 rounded-lg border transition-all cursor-pointer ${late
-                                      ? 'border-brand/40 bg-brand/8 hover:bg-brand/15'
-                                      : 'border-white/12 bg-white/[0.04] hover:border-brand/50 hover:bg-brand/8'
-                                    }`}
+                                  className={`flex flex-col items-center min-w-[72px] px-3 py-2.5 rounded-lg border transition-all cursor-pointer relative overflow-hidden ${
+                                    isSneak
+                                      ? 'border-purple-500/40 bg-purple-500/10 hover:bg-purple-500/20 hover:border-purple-500/60'
+                                      : late
+                                        ? 'border-brand/40 bg-brand/8 hover:bg-brand/15'
+                                        : 'border-white/12 bg-white/[0.04] hover:border-brand/50 hover:bg-brand/8'
+                                  }`}
                                 >
-                                  <span className={`text-sm font-black leading-none ${late ? 'text-brand' : 'text-white'}`}>
+                                  {isSneak && (
+                                    <span className="absolute top-0 right-0 bg-gradient-to-l from-purple-600 to-pink-600 text-white text-[7px] font-black uppercase px-1 py-0.5 rounded-bl-md leading-none tracking-wider scale-90 origin-top-right">
+                                      SỚM
+                                    </span>
+                                  )}
+                                  <span className={`text-sm font-black leading-none ${isSneak ? 'text-purple-400' : late ? 'text-brand' : 'text-white'}`}>
                                     {time}
                                   </span>
-                                  {late && (
+                                  {late && !isSneak && (
                                     <span className="text-[9px] text-brand/70 font-bold mt-0.5">{dateLabel}</span>
+                                  )}
+                                  {isSneak && (
+                                    <span className="text-[9px] text-purple-400/80 font-bold mt-0.5">{dateLabel}</span>
                                   )}
                                   <span className="text-[9px] text-gray-500 font-semibold mt-1">
                                     {st.availableSeats} ghế trống
@@ -267,7 +286,6 @@ export const ShowtimeSelection: React.FC = () => {
     setLoadingShowtimes(true);
     try {
       const res = await apiClient.get(`/showtimes/movie/${movieId}`);
-      // Backend returns ApiResponse<IEnumerable<ShowtimeDto>> — unwrap .data
       const data = res.data?.data ?? res.data;
       const items: Showtime[] = Array.isArray(data) ? data
         : Array.isArray(data?.items) ? data.items : [];
@@ -294,14 +312,46 @@ export const ShowtimeSelection: React.FC = () => {
   };
 
   const availableDates = Array.from(
-    new Set(showtimes.map(s => parseApiDate(s.startTime).toDateString()))
+    new Set(
+      showtimes
+        .filter(s => parseApiDate(s.startTime).getTime() > Date.now())
+        .map(s => parseApiDate(s.startTime).toDateString())
+    )
   ).sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
+
+  useEffect(() => {
+    if (availableDates.length > 0) {
+      if (!selectedDate || !availableDates.includes(selectedDate)) {
+        setSelectedDate(availableDates[0]);
+      }
+    } else {
+      setSelectedDate('');
+    }
+  }, [availableDates.length, selectedDate]);
 
   const filteredShowtimes = showtimes.filter(s => {
     const matchesCinema = selectedCinemaId ? s.hall?.cinemaId === selectedCinemaId : true;
     const matchesDate = selectedDate ? parseApiDate(s.startTime).toDateString() === selectedDate : true;
-    return matchesCinema && matchesDate;
+    const isFuture = parseApiDate(s.startTime).getTime() > Date.now();
+    return matchesCinema && matchesDate && isFuture;
   });
+
+  // Group showtimes by cinema and format
+  const groupedShowtimes = cinemas
+    .filter(c => selectedCinemaId === null || c.cinemaId === selectedCinemaId)
+    .map(cinema => {
+      const cinemaShowtimes = filteredShowtimes.filter(s => s.hall?.cinemaId === cinema.cinemaId);
+      const byFormat: Record<string, Showtime[]> = {};
+      cinemaShowtimes.forEach(st => {
+        const formatName = st.hall?.hallTypeName || '2D';
+        if (!byFormat[formatName]) {
+          byFormat[formatName] = [];
+        }
+        byFormat[formatName].push(st);
+      });
+      return { cinema, byFormat, total: cinemaShowtimes.length };
+    })
+    .filter(g => g.total > 0);
 
   const handleSelectShowtime = (st: Showtime) => {
     if (!isAuthenticated) {
@@ -407,16 +457,6 @@ export const ShowtimeSelection: React.FC = () => {
               Chọn Ngày Chiếu
             </span>
             <div className="flex gap-2 flex-wrap">
-              <button
-                onClick={() => setSelectedDate('')}
-                className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all border cursor-pointer ${
-                  selectedDate === ''
-                    ? 'bg-brand border-brand text-white shadow-brand'
-                    : 'bg-white/5 border-white/5 text-gray-400 hover:text-white hover:bg-white/10'
-                }`}
-              >
-                Tất Cả Ngày
-              </button>
               {availableDates.map(d => (
                 <button
                   key={d}
@@ -441,48 +481,79 @@ export const ShowtimeSelection: React.FC = () => {
             <SkeletonLoader className="h-28 rounded-2xl" />
             <SkeletonLoader className="h-28 rounded-2xl" />
           </div>
-        ) : filteredShowtimes.length === 0 ? (
+        ) : groupedShowtimes.length === 0 ? (
           <div className="border border-white/5 bg-white/[0.01] rounded-2xl p-12 text-center flex flex-col items-center gap-3">
             <Info className="text-gray-600" size={32} />
             <p className="text-xs font-bold text-gray-400">Không có suất chiếu nào phù hợp</p>
             <p className="text-[11px] text-gray-500">Vui lòng chọn tiêu chí lọc khác.</p>
           </div>
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-            {filteredShowtimes
-              .sort((a, b) => parseApiDate(a.startTime).getTime() - parseApiDate(b.startTime).getTime())
-              .map(st => {
-                const d = parseApiDate(st.startTime);
-                const time = d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false });
-                const hallName = st.hall?.name || 'Hall A';
-                const typeName = st.hall?.hallTypeName || '2D';
-                const cinemaName = cinemas.find(c => c.cinemaId === st.hall?.cinemaId)?.name || '';
+          <div className="flex flex-col gap-8">
+            {groupedShowtimes.map(({ cinema, byFormat }) => (
+              <div key={cinema.cinemaId} className="bg-[#111] border border-white/10 rounded-2xl p-6 flex flex-col gap-6">
+                {/* Cinema Name & Address */}
+                <div className="border-b border-white/5 pb-4">
+                  <h3 className="text-base font-extrabold text-white flex items-center gap-2">
+                    {cinema.name}
+                  </h3>
+                  <p className="text-xs text-gray-500 mt-1">{cinema.address}</p>
+                </div>
 
-                return (
-                  <button
-                    key={st.showtimeId}
-                    onClick={() => handleSelectShowtime(st)}
-                    className="flex flex-col items-center justify-center p-6 bg-white/[0.02] border border-white/5 hover:border-brand/30 rounded-2xl transition-all cursor-pointer hover:scale-[1.02] hover:bg-white/[0.04] text-center gap-1.5 group select-none shadow-sm"
-                  >
-                    <span className="text-2xl font-black text-white group-hover:text-brand transition-colors">
-                      {time}
+                {/* Formats under this Cinema */}
+                {Object.entries(byFormat).map(([formatName, sts]) => (
+                  <div key={formatName} className="flex flex-col gap-3">
+                    <span className="text-[11px] font-black uppercase tracking-wider text-gray-400">
+                      {formatName}
                     </span>
-                    <div className="flex flex-col items-center">
-                      <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">
-                        {hallName} ({typeName})
-                      </span>
-                      {selectedCinemaId === null && cinemaName && (
-                        <span className="text-[9px] text-gray-500 font-semibold max-w-[140px] truncate mt-0.5">
-                          {cinemaName}
-                        </span>
-                      )}
+                    
+                    <div className="grid grid-cols-3 sm:grid-cols-6 md:grid-cols-8 gap-3">
+                      {sts
+                        .sort((a, b) => parseApiDate(a.startTime).getTime() - parseApiDate(b.startTime).getTime())
+                        .map(st => {
+                          const d = parseApiDate(st.startTime);
+                          const time = d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false });
+                          const late = d.getHours() >= 22;
+                          const isSneak = movie.releaseDate ? parseApiDate(st.startTime) < parseApiDate(movie.releaseDate) : false;
+
+                          return (
+                            <button
+                              key={st.showtimeId}
+                              onClick={() => handleSelectShowtime(st)}
+                              className={`flex flex-col items-center justify-center p-3 rounded-xl border transition-all cursor-pointer relative overflow-hidden group select-none ${
+                                isSneak
+                                  ? 'border-purple-500/30 bg-purple-500/10 hover:bg-purple-500/20 hover:border-purple-500/60'
+                                  : late
+                                    ? 'border-brand/40 bg-brand/8 hover:bg-brand/15'
+                                    : 'border-white/5 bg-white/[0.02] hover:border-brand/30 hover:bg-white/[0.04]'
+                              }`}
+                            >
+                              {isSneak && (
+                                <span className="absolute top-0 right-0 bg-gradient-to-l from-purple-600 to-pink-600 text-white text-[6px] font-black uppercase px-1 py-0.5 rounded-bl-md leading-none tracking-wider scale-90 origin-top-right">
+                                  SỚM
+                                </span>
+                              )}
+                              <span className={`text-base font-black transition-colors ${isSneak ? 'text-purple-400' : late ? 'text-brand' : 'text-white'}`}>
+                                {time}
+                              </span>
+                              <span className="text-[9px] text-gray-500 font-semibold mt-1">
+                                {st.availableSeats} ghế trống
+                              </span>
+                            </button>
+                          );
+                        })}
                     </div>
-                    <span className="text-[10px] text-brand-gold font-black uppercase tracking-wider mt-1">
-                      Còn {st.availableSeats} ghế trống
-                    </span>
-                  </button>
-                );
-              })}
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Late show legend */}
+        {!loadingShowtimes && filteredShowtimes.some(s => parseApiDate(s.startTime).getHours() >= 22) && (
+          <div className="flex items-center gap-2 mt-4 px-2">
+            <div className="w-3.5 h-3.5 rounded bg-brand/8 border border-brand/40" />
+            <span className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">Suất chiếu muộn từ 22h00</span>
           </div>
         )}
       </div>

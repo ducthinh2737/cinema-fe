@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 
-export type PromotionCategory = 'all' | 'promotions' | 'news' | 'events' | 'vouchers' | 'members';
+export type PromotionCategory = 'all' | 'promotions' | 'news' | 'events';
 
 interface PromotionTabsProps {
   activeTab: PromotionCategory;
@@ -14,8 +14,6 @@ export const PromotionTabs: React.FC<PromotionTabsProps> = ({ activeTab, onTabCh
     { id: 'promotions', label: 'Khuyến mãi' },
     { id: 'news', label: 'Tin điện ảnh' },
     { id: 'events', label: 'Sự kiện' },
-    { id: 'vouchers', label: 'Voucher' },
-    { id: 'members', label: 'Thành viên' },
   ] as const;
 
   return (

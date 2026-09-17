@@ -3,7 +3,8 @@ import { apiClient } from '../../api/client';
 import type { Booking } from '../../types';
 import { GlassCard } from '../../components/ui/GlassCard';
 import { SkeletonLoader } from '../../components/ui/SkeletonLoader';
-import { Ticket, Calendar, Clock, QrCode } from 'lucide-react';
+import { Ticket, Calendar, Clock } from 'lucide-react';
+import { parseApiDate } from '../../utils/dateHelpers';
 
 export const BookingHistory: React.FC = () => {
   const [bookings, setBookings] = useState<Booking[]>([]);
@@ -28,6 +29,8 @@ export const BookingHistory: React.FC = () => {
     switch (status) {
       case 'Confirmed':
         return 'bg-green-500/10 text-green-400 border-green-500/20';
+      case 'CheckedIn':
+        return 'bg-purple-500/10 text-purple-400 border-purple-500/20 shadow-[0_0_15px_rgba(168,85,247,0.15)]';
       case 'Cancelled':
         return 'bg-brand/10 text-brand border-brand/20';
       default:
@@ -39,6 +42,8 @@ export const BookingHistory: React.FC = () => {
     switch (status) {
       case 'Confirmed':
         return 'Đã xác nhận';
+      case 'CheckedIn':
+        return 'Đã Check-in';
       case 'Cancelled':
         return 'Đã hủy';
       default:
@@ -87,7 +92,7 @@ export const BookingHistory: React.FC = () => {
                     {booking.movieTitle || booking.showtime?.movie?.title || 'Unknown Film'}
                   </h3>
                   <span className="text-xs text-gray-500 block mt-1">
-                    Cinema Pass Complex • Hall {booking.hallName || booking.showtime?.hall?.name || 'A'}
+                    Cinema Pass Complex • Hall {booking.hallName || booking.showtime?.hall?.name || 'A'} • {booking.movieDuration || booking.showtime?.movie?.duration || 120} phút
                   </span>
                 </div>
 
@@ -96,14 +101,14 @@ export const BookingHistory: React.FC = () => {
                     <span className="text-[10px] text-gray-500 uppercase tracking-widest block mb-1">Ngày</span>
                     <span className="text-gray-300 flex items-center gap-1">
                       <Calendar size={12} />
-                      {(booking.startTime || booking.showtime?.startTime) ? new Date(booking.startTime || booking.showtime!.startTime).toLocaleDateString('vi-VN') : 'N/A'}
+                      {(booking.startTime || booking.showtime?.startTime) ? parseApiDate(booking.startTime || booking.showtime!.startTime).toLocaleDateString('vi-VN') : 'N/A'}
                     </span>
                   </div>
                   <div>
                     <span className="text-[10px] text-gray-500 uppercase tracking-widest block mb-1">Giờ</span>
                     <span className="text-gray-300 flex items-center gap-1">
                       <Clock size={12} />
-                      {(booking.startTime || booking.showtime?.startTime) ? new Date(booking.startTime || booking.showtime!.startTime).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : 'N/A'}
+                      {(booking.startTime || booking.showtime?.startTime) ? parseApiDate(booking.startTime || booking.showtime!.startTime).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : 'N/A'}
                     </span>
                   </div>
                   <div className="col-span-2">
@@ -122,21 +127,14 @@ export const BookingHistory: React.FC = () => {
                 </div>
               </div>
 
-              {/* Right Col: QR Ticket Code (only if confirmed) */}
-              {booking.bookingStatus === 'Confirmed' && (
+              {/* Right Col: QR Ticket Code (only if confirmed or checked in) */}
+              {(booking.bookingStatus === 'Confirmed' || booking.bookingStatus === 'CheckedIn') && (
                 <div className="flex flex-col items-center justify-center bg-white p-3 rounded-2xl border border-white/10 md:w-36 md:h-36 self-center shrink-0">
-                  {booking.qrCodeUrl ? (
-                    <img
-                      src={booking.qrCodeUrl}
-                      alt="Ticket QR Code"
-                      className="w-28 h-28 object-contain"
-                    />
-                  ) : (
-                    <div className="flex flex-col items-center gap-1 text-gray-400">
-                      <QrCode size={36} />
-                      <span className="text-[9px] font-bold uppercase tracking-wider text-center text-gray-500">QR CODE</span>
-                    </div>
-                  )}
+                  <img
+                    src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(window.location.origin + '/booking/' + booking.bookingId)}`}
+                    alt="Ticket QR Code"
+                    className="w-28 h-28 object-contain"
+                  />
                 </div>
               )}
             </GlassCard>
