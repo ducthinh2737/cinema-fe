@@ -16,7 +16,7 @@ import { motion } from 'framer-motion';
 // Zod Validation Schema
 const loginSchema = z.object({
   email: z.string().min(1, 'Vui lòng nhập Email').email('Địa chỉ Email không hợp lệ'),
-  password: z.string().min(6, 'Mật khẩu phải dài ít nhất 6 ký tự'),
+  password: z.string().min(1, 'Vui lòng nhập Mật khẩu'),
 });
 
 type LoginFields = z.infer<typeof loginSchema>;

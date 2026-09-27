@@ -81,9 +81,9 @@ export const MoviesManagement: React.FC = () => {
 
       const response = await apiClient.get<any>('/movies', {
         params: {
-          Search: debouncedSearch || undefined,
+          SearchTerm: debouncedSearch || undefined,
           GenreId: selectedGenreId || undefined,
-          PageNumber: page,
+          PageNumber: 1,
           PageSize: 100, // Fetch all locally to allow advanced client sorting/filtering simulated data
         },
       });
@@ -98,7 +98,7 @@ export const MoviesManagement: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [debouncedSearch, selectedGenreId, page, showToast]);
+  }, [debouncedSearch, selectedGenreId, showToast]);
 
   const fetchGenres = useCallback(async () => {
     try {
@@ -116,6 +116,11 @@ export const MoviesManagement: React.FC = () => {
   useEffect(() => {
     fetchMovies();
   }, [fetchMovies]);
+
+  // Reset page to 1 when any filter changes
+  useEffect(() => {
+    setPage(1);
+  }, [selectedGenreId, selectedStatus, selectedLanguage, selectedCountry, selectedAgeRating, isFeatured]);
 
   // Dynamically map a status string based on dates
   const getMovieStatus = useCallback((movie: Movie): MovieStatus => {
